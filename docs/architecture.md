@@ -224,11 +224,118 @@ refresh loop competing with I2C/keypad scan) and give per-LED RGB + brightness.
   offload mastering from the '85, but if you're adding a helper chip anyway, a
   tinyAVR with hardware TWI is the cleaner "still an AVR" choice.
 
-## 9. Open decisions
+## 9. Power & power management
 
-1. Motherboard chip: bare ATTiny85 (purist) vs tinyAVR-1 (headroom)?
-2. LED module: dumb driver IC vs smart ATTiny85 + APA102?
-3. Modifier semantics: are the status lights one-at-a-time modes or stackable
-   flags? (Drives local-LED scheme: one-hot decoder vs independent/APA102.)
-4. Run the resistor-ladder optimizer and lock the 16 ADC thresholds + margins.
-5. Assign the `WHO_AM_I` device-type id space.
+Power is modularized like every other capability: a dedicated **Power Module**
+(default addr `0x22`) feeds the bus, with pluggable input sources. Design it
+around one dominating decision.
+
+### 9.1 The dominating decision — system bus voltage
+
+Bus voltage is a **system-wide commitment** (hard to change later) because it
+ripples everywhere:
+
+| Rail | ATtiny85 clock | SSD1306 | Addressable LEDs | Battery fit |
+|---|---|---|---|---|
+| **5 V** | 16 MHz OK | 5 V-tolerant modules OK; bare 3.3 V panels need care | WS2812/APA102 native | 9 V / barrel / USB → regulate to 5 V |
+| **3.3 V** | ≤ 8–10 MHz | native | need level-shift on data | LiPo (4.2→3.3) efficient |
+
+Pick **one** and put level-shifters only where a device disagrees (classically
+the LED-strip data line). Cheap 0.96" SSD1306 modules are usually 5 V-friendly,
+so a **5 V bus is the pragmatic PoC default** given the "9 V / 5 V" inputs.
+
+### 9.2 Sources & regulation
+
+- **Barrel jack** (9 V/12 V wall wart) → regulate to the rail. Buck (MP1584 /
+  module) for efficiency; LDO (AMS1117 / 7805) for simplicity / low noise.
+- **Battery** — 9 V PP3 is convenient for a PoC but a poor production cell
+  (~500 mAh, and a linear 9→5 wastes ~44 % as heat). For real portability a
+  **single LiPo run near 3.3 V + USB charging (TP4056)** is far better.
+- **USB (later)** = clean 5 V, and can charge the LiPo (USB power path).
+
+**Power-path mux** for auto-switching between sources (priority e.g. USB >
+barrel > battery): TPS2113 / LTC4412 ideal-diode mux, or a Schottky diode-OR
+(simple, costs one diode drop). This is what makes the sources hot-swappable.
+
+### 9.3 Two rails, not one
+
+Reprising the bus rule: **never run high-current loads through the Qwiic
+connector.**
+
+- **Logic rail** — regulated, low current, carried on bus `VCC` to every sipping
+  module (MCUs, OLED, FRAM).
+- **LED-strip rail** — separate, high-current, injected directly at the strip
+  from the power module (screw terminal / dedicated connector).
+
+Common ground across both. Per-module decoupling (100 nF + local bulk) is
+mandatory on a multi-module bus.
+
+### 9.4 Dumb vs smart power module
+
+- **Dumb:** input mux + regulation + protection (reverse-polarity, polyfuse).
+  Feeds power, no I2C. Fine to start.
+- **Smart (another '85!):** an I2C slave that senses battery via an ADC divider
+  and reports telemetry — very on-brand. The motherboard queries it to draw a
+  low-battery icon or enter low-power mode.
+
+Smart power-module registers (from `0x10`):
+
+| Reg | Name | Meaning |
+|---|---|---|
+| `0x10` | `BATT_MV` | Battery voltage, mV (16-bit) |
+| `0x11` | `SOURCE` | 0 = battery, 1 = barrel, 2 = USB |
+| `0x12` | `CHARGE_STATE` | idle / charging / full / fault |
+| `0x13` | `BATT_PCT` | Estimated % |
+| `0x14` | `RAIL_CTRL` | Enable/disable rails, low-power mode |
+| `0x15` | `FLAGS` | low-batt / over-temp / fault |
+
+Also set the **BOD (brown-out detection) fuse** on every '85 so modules reset
+cleanly on a sagging battery instead of behaving erratically.
+
+## 10. Roadmap & build sequence
+
+**Product priority vs learning priority differ — captured separately.**
+
+- **Product priority:** the keypad is the flagship input module. The dedicated
+  LED module is *deferrable* — the SSD1306 OLED can show status, so general
+  indication does not need its own board early.
+- **Learning priority (PCB path):** build the **LED module first**. It is the
+  simplest *complete vertical slice* of the architecture — a full I2C slave
+  (common register header, TinyWireS skeleton, EEPROM address, Qwiic footprint,
+  pull-up/power rules) with trivial application logic. It nails the bus + module
+  skeleton on easy mode before the keypad's harder analog front-end.
+  → **The LED module becomes the reference-slave template every other '85 module
+  forks.**
+
+Note: giving the LED module its **own** '85 dissolves the earlier "4 LEDs on
+2 GPIO" problem — a dedicated slave has PB1/PB3/PB4 free (3 GPIO), so 4
+direct-drive LEDs is trivial. Save charlieplex / APA102 cleverness for a
+"many LEDs / RGB" v2; board v1 should be dead-simple direct drive.
+
+| # | Board | Purpose | Firmware |
+|---|---|---|---|
+| 0 | **LED module** | Learning PCB + reference slave | Slave skeleton + `digitalWrite` LEDs |
+| 1 | **Keypad module** | Flagship input | Fork skeleton + ADC ladder + debounce + FIFO + modifiers |
+| 2 | **Motherboard** | RPN brain + SSD1306 (off-the-shelf), OLED status | '85 master + RPN + I2C master |
+| 3 | **FRAM + programmable RPN** | User programs / NV state | FRAM slave (`0x50`) + program VM |
+| — | USB (later) | Load programs | PoC: MCP2221 mailbox → hero: V-USB '85 (Digispark-style) |
+| — | OLED co-processor (later) | Offload framebuffer | tinyAVR-1 (needs >512 B RAM) |
+| — | Backplane mux (later) | Expansion cards | TCA9548A + per-slot hot-swap buffers |
+
+## 11. Open decisions
+
+1. **System bus voltage: 5 V (PoC default) vs 3.3 V (portable/LiPo)** — the
+   dominating decision; drives OLED choice, LED level-shifting, ATtiny clock,
+   and battery topology.
+2. Power module: dumb (regulation + mux) vs smart '85 telemetry slave (`0x22`).
+3. Motherboard chip: bare ATTiny85 (purist, currently leaning this way) vs
+   tinyAVR-1 (headroom).
+2. LED module v1 drive: 3–4 direct-drive GPIO LEDs (recommended first); APA102
+   RGB deferred to v2.
+3. Modifier status semantics: one-at-a-time modes vs stackable flags (drives the
+   keypad local-LED scheme: one-hot decoder vs independent/APA102).
+4. "Programmable" scope: user RPN programs (FRAM + program VM) vs firmware
+   reflash — drives the USB/flash story.
+5. USB path: MCP2221 mailbox for the PoC; V-USB '85 as the aspirational version.
+6. Run the resistor-ladder optimizer and lock the 16 ADC thresholds + margins.
+7. Assign the `WHO_AM_I` device-type id space.
