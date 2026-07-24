@@ -168,6 +168,9 @@ voltage. Idle (no press) reads 0 via `Rload`, cleanly distinct from all keys.
   error. Don't go small.
 - **ADC source impedance** at high codes is tens of kΩ — add **~10 nF at SENSE**,
   slow the ADC clock, and require N consecutive stable reads (debounce does this).
+- **Voltage-independent** — the divider is ratiometric, so thresholds (as
+  fractions of full-scale) are identical at 3.3 V or 5 V; the optimizer output
+  ports across rails unchanged.
 - **Single-key only** — two presses create two paths and a garbage voltage. The
   **latched/sticky modifiers make this a non-issue**: the user never physically
   holds two keys, so no chording is ever required.
@@ -240,9 +243,30 @@ ripples everywhere:
 | **5 V** | 16 MHz OK | 5 V-tolerant modules OK; bare 3.3 V panels need care | WS2812/APA102 native | 9 V / barrel / USB → regulate to 5 V |
 | **3.3 V** | ≤ 8–10 MHz | native | need level-shift on data | LiPo (4.2→3.3) efficient |
 
-Pick **one** and put level-shifters only where a device disagrees (classically
-the LED-strip data line). Cheap 0.96" SSD1306 modules are usually 5 V-friendly,
-so a **5 V bus is the pragmatic PoC default** given the "9 V / 5 V" inputs.
+**Decision: target 3.3 V.** The system is designed around a **3.3 V bus + single
+LiPo**, because 3.3 V is the native voltage of the **Qwiic / STEMMA QT**
+ecosystem — every smart '85 breakout then plugs into the wider Qwiic world for
+free — and a single LiPo regulates to 3.3 V efficiently across its whole
+discharge curve. A 5 V bus stays a valid **bench-PoC convenience**; design boards
+**voltage-agnostic** (parts rated 3.0–5.5 V, ATtiny at 8 MHz internal, LED
+resistors sized for 3.3 V) so PoC boards migrate to 3.3 V without a respin.
+
+**Implications of 3.3 V:**
+- **ATtiny85 @ 8 MHz internal RC** — no crystal, safe at 3.3 V, comfortable for a
+  100 kHz USI I2C slave. (V-USB's 16.5 MHz is out of spec at 3.3 V — see below.)
+- **SSD1306 is natively 3.3 V** — its preferred rail, no level concern.
+- **Keypad ADC ladder is unaffected** — it is *ratiometric* (VCC and ADC ref
+  scale together), so keycode thresholds as fractions of full-scale are identical
+  at 3.3 V or 5 V. The ladder design is voltage-independent.
+- **Addressable LEDs are the one friction point** — WS2812 wants 5 V power and a
+  ≥ 3.5 V data HIGH, so a 3.3 V data line is marginal. **Localize the mess:** run
+  the LED-strip rail at 5 V *on the LED module only*, with a level-shifter
+  (74AHCT125 / SN74LVC1T45) there, keeping the bus pure 3.3 V. (APA102/SK9822
+  tolerate 3.3 V data better — preferred.)
+- **Direct-drive LED gotcha:** at 3.3 V, blue/white/green LEDs (Vf ≈ 3.0–3.4 V)
+  barely light. Use **red/amber (Vf ≈ 1.8–2.1 V)** on the LED learning board.
+- **USB / V-USB is the 5 V exception** — V-USB needs ~16.5 MHz, so the USB module
+  runs its '85 at 5 V (it is on USB power anyway) and bridges to the 3.3 V bus.
 
 ### 9.2 Sources & regulation
 
@@ -256,6 +280,13 @@ so a **5 V bus is the pragmatic PoC default** given the "9 V / 5 V" inputs.
 **Power-path mux** for auto-switching between sources (priority e.g. USB >
 barrel > battery): TPS2113 / LTC4412 ideal-diode mux, or a Schottky diode-OR
 (simple, costs one diode drop). This is what makes the sources hot-swappable.
+
+For the LiPo target: **TP4056** charges from USB (with DW01 protection); an
+**MCP1700-3.3 LDO** (µA-class quiescent) or a **TPS63xxx buck-boost** (to use the
+full 3.0–4.2 V range) makes the 3.3 V rail; the smart module senses the cell
+through a **÷2 divider** (LiPo's 4.2 V exceeds the 3.3 V ADC reference). For
+charge-while-running, prefer a load-sharing power-path charger (MCP73871 /
+BQ24074) over a bare TP4056.
 
 ### 9.3 Two rails, not one
 
@@ -292,6 +323,43 @@ Smart power-module registers (from `0x10`):
 Also set the **BOD (brown-out detection) fuse** on every '85 so modules reset
 cleanly on a sagging battery instead of behaving erratically.
 
+### 9.5 Low-power lighting & sleep
+
+"Luminescence without breaking the power bank" is a **duty-cycle and sleep
+problem, not a light-source problem.** Average current = drive current × duty ×
+count, so the levers are brightness, how often, and whether the MCU is even awake.
+
+Rough scale on a 500 mAh LiPo:
+- 4 LEDs at 20 mA always on ≈ 80 mA → **~6 h**.
+- Dim, event-driven glow + sleeping MCUs ≈ ~1 mA → **~500 h**.
+
+That ~100× gap is the whole game — chase the strategy, not the emitter.
+
+**Toolkit:**
+- **High-efficiency LEDs at 1–2 mA** — clearly visible sub-2 mA; you rarely need
+  20 mA for an indicator.
+- **APA102/SK9822 global brightness** — the 5-bit global field current-limits
+  independently of color, so a soft ambient glow runs cheap *and* holds state
+  with zero MCU overhead (fire-and-forget → the '85 can sleep).
+- **PWM + the eye's log response** — 10 % duty looks far brighter than 10 %;
+  dim-by-PWM buys big savings for little perceived loss.
+- **Event-driven** — light on interaction, fade out on an idle timeout.
+- **MCU sleep + wake-on-keypress** — the killer lever. The keypad '85 sleeps in
+  power-down (~µA) and wakes on a **pin-change interrupt on the SENSE line**
+  (PB3 / PCINT3): idle SENSE = 0 V (via Rload); a press pulls it up → rising edge
+  wakes the chip, which then runs the ADC decode. **The same wire both wakes and
+  decodes.** The USI start-condition interrupt likewise wakes a sleeping slave on
+  bus activity.
+
+**Zero-power option — photoluminescent legends.** Coat key legends / edge trim
+with glow ("phosphorescent") pigment: a brief LED flash charges it, then it
+glows passively with **zero standby draw** — literal luminescence, free after
+charging, ideal for static legends findable in the dark.
+
+**Avoid EL wire/panel** here: electroluminescent glow needs a high-voltage AC
+inverter (~100 V) that draws steadily and adds RF noise — a poor fit for a
+LiPo-powered I2C bus.
+
 ## 10. Roadmap & build sequence
 
 **Product priority vs learning priority differ — captured separately.**
@@ -324,10 +392,11 @@ direct-drive LEDs is trivial. Save charlieplex / APA102 cleverness for a
 
 ## 11. Open decisions
 
-1. **System bus voltage: 5 V (PoC default) vs 3.3 V (portable/LiPo)** — the
-   dominating decision; drives OLED choice, LED level-shifting, ATtiny clock,
-   and battery topology.
+1. ✅ **DECIDED — 3.3 V target** (Qwiic/STEMMA QT-native + single LiPo). 5 V is an
+   optional bench-PoC rail; boards designed voltage-agnostic to migrate.
 2. Power module: dumb (regulation + mux) vs smart '85 telemetry slave (`0x22`).
+3. Idle/wake policy: sleep timeout, wake sources (SENSE PCINT + USI start), and
+   the LED idle-glow brightness budget.
 3. Motherboard chip: bare ATTiny85 (purist, currently leaning this way) vs
    tinyAVR-1 (headroom).
 2. LED module v1 drive: 3–4 direct-drive GPIO LEDs (recommended first); APA102
