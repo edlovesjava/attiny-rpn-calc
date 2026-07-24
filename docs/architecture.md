@@ -468,7 +468,7 @@ direct-drive LEDs is trivial. Save charlieplex / APA102 cleverness for a
 | 1 | **Keypad module** | Flagship input | Fork skeleton + ADC ladder + debounce + FIFO + modifiers |
 | 2 | **Motherboard** | RPN brain + SSD1306 (off-the-shelf), OLED status | '85 master + RPN + I2C master |
 | 3 | **FRAM + programmable RPN** | User programs / NV state | FRAM slave (`0x50`) + program VM |
-| — | USB (later) | Load programs | PoC: MCP2221 mailbox → hero: V-USB '85 (Digispark-style) |
+| — | USB (later) | Sync programs + charge | MCP2221A on-board (UART→tinyAVR master, or I2C provisioning-master + handoff); V-USB '85 = purist hero. CP2112 = bench master. |
 | — | OLED co-processor (later) | Offload framebuffer | tinyAVR-1 (needs >512 B RAM) |
 | — | Backplane mux (later) | Expansion cards | TCA9548A + per-slot hot-swap buffers |
 
@@ -490,7 +490,13 @@ direct-drive LEDs is trivial. Save charlieplex / APA102 cleverness for a
    keypad local-LED scheme: one-hot decoder vs independent/APA102).
 8. "Programmable" scope: user RPN programs (FRAM + program VM) vs firmware
    reflash — drives the USB/flash story.
-9. USB path: MCP2221 mailbox for the PoC; V-USB '85 as the aspirational version.
+9. USB-in-product: **CP2112/MCP2221A are I2C masters only** (neither can be a
+   slave — no "mailbox" pattern). So either (a) route the MCP2221A **UART** to a
+   **tinyAVR** motherboard, which stays the sole I2C master and lets the calc run
+   live; or (b) use it as an I2C **provisioning-master** with a "USB-active"
+   handoff line to a '85 motherboard ("dock/sync" mode). V-USB '85 = purist
+   alternative. The USB port doubles as the LiPo-charge input. Bench dev master =
+   CP2112 (driverless; run bench at one voltage, 5V or 3.3V).
 10. ✅ **DONE — resistor-ladder values locked** (see `docs/keypad-ladder.md`).
     Remaining sub-choice: unified PCINT wake (recommended) vs decoupled wake for
     the extra 3 counts of resolution.
