@@ -60,8 +60,8 @@ These are the practical rules that keep a multi-module bus reliable.
    the cabling support it.
 5. **Keypad notification = polling.** A shared I2C bus gives a slave no way to
    interrupt the master. The motherboard **polls** the keypad at ~50–100 Hz
-   (invisible to humans, dead simple). An optional out-of-band `INT` wire is
-   possible but unnecessary for a keypad.
+   (invisible to humans, dead simple). A single out-of-band `INT` wire becomes
+   *recommended* once system deep-sleep wake matters — see §9.6.
 
 ### Connector standard
 
@@ -360,6 +360,82 @@ charging, ideal for static legends findable in the dark.
 inverter (~100 V) that draws steadily and adds RF noise — a poor fit for a
 LiPo-powered I2C bus.
 
+### 9.6 Interrupts, wake & sleep
+
+Low power is a *sleep architecture*, and its hard core is that **an I2C slave
+cannot clock the bus while in power-down.** Two regimes resolve it.
+
+**Two sleep regimes**
+- **Active IDLE** (normal use) — CPU halts between interrupts but peripherals stay
+  clocked, so the USI receives I2C normally and wakes the CPU with *zero latency*.
+  Draw ~mA. Used whenever the master is actively polling.
+- **System power-down** (whole device idle) — everything drops to ~µA. This is
+  where the ~500 h battery life lives. Entered on an idle timeout; the **master
+  orchestrates** it, and wake is by keypress.
+
+**Wake sources on the ATtiny85**
+
+| Source | Wakes from power-down? | Use |
+|---|---|---|
+| **PCINT** (any PB pin) | yes | keypress wake on SENSE (PB3) |
+| **USI start condition** | yes (async detector) | wake a sleeping slave on bus start; clock-stretch while the RC oscillator spins up |
+| **INT0** (PB2) | yes | = SCL pin — usable but bus-shared, treat with care |
+| **Watchdog (WDT)** | yes (own oscillator) | timed wake (battery sampling), idle timeout, hang-safety reset |
+| **Timers** | **no** (stop in power-down) | wake only from IDLE |
+
+**Do we need an interrupt *bus*? — No: one shared line, not a parallel bus.**
+A slave can wake *itself* on a local event (keypad: SENSE PCINT), but it cannot
+initiate on I2C to wake the sleeping *master*. The fix is a single
+**open-drain, wired-OR attention line** (`INT`), pulled low by *any* slave that
+needs service, with one pull-up:
+
+- **Topology** — open-drain, one pull-up, wired-OR. Any number of slaves share
+  the one wire; they only ever pull it *low*, never drive high. Level-held (not a
+  pulse) until serviced, so the master can't miss it mid-wake.
+- **Finding the source** — the line says only "someone needs you." The master
+  then polls `STATUS` registers to find who — or, the standard way, uses the
+  **SMBus Alert Response Address (0x0C)**: the interrupter replies with its own
+  address in one transaction, no enumeration sweep.
+- **What it unlocks** — the master can fully power-down and wake *instantly* on a
+  keypress, instead of WDT-polling every ~250 ms. This is what makes the µA
+  deep-sleep number real. It also carries other alerts (low-battery from the
+  power module) on the same wire.
+- **A parallel per-slot interrupt bus** (one line per card back to the master) is
+  **overkill** at this scale — it only buys instant source identification, which
+  polling/ARA already gives at human speeds, and it doesn't scale on a '85's pins.
+
+**Qwiic impact** — Qwiic/STEMMA QT is strictly 4-pin (no INT), so the `INT` line
+is a **5th pin on your own backplane/header**. Plain Qwiic devices still work
+(the master just polls them); your smart modules gain instant wake. Master side:
+`INT0` sits on SCL, so wake the master via **PCINT** on a spare pin (e.g. PB4).
+
+**Keypad SENSE-wake cross-constraint (feed the optimizer).** PCINT fires on a
+digital threshold (~0.5·VCC). The *highest* keycode (15) is the *lowest* SENSE
+voltage, so it must still cross that threshold to wake the chip. Choosing
+**Rload ≳ 15·R** keeps all 16 codes in the top half of the range (≈ VCC…VCC/2),
+so every press reliably wakes *and* decodes — at the cost of ~half the ADC span
+for resolution (~32 counts/level). The ladder optimizer must satisfy **both**
+"16 separable levels" **and** "min level > wake threshold" jointly.
+
+**ISR discipline.** The AVR runs no nested interrupts (globally disabled inside an
+ISR), so a long ISR corrupts in-flight I2C. Rule: **USI is the only
+time-critical handler; keep every ISR short — set a flag / push a FIFO — and do
+ADC decode, debounce and PWM in the main loop.** (The §4 core/platform split
+exists for exactly this.)
+
+**Peripheral sleep.**
+- **SSD1306** — issue *display-off* (`0xAE`) on idle → ~µA. The lit OLED is the
+  biggest logic-side draw, so this saves the most.
+- **APA102/SK9822** — hold their own state → no refresh, MCU sleeps freely.
+- **Power module** — WDT-wakes every few seconds to sample the cell, else sleeps.
+
+**BOD vs sleep-floor tradeoff.** Brown-out detection costs **~20 µA
+continuously** — which dominates a µA sleep budget. The '85 has no automatic
+sleep-BOD-disable, so either accept the ~20 µA floor (safer) or disable BOD in
+deep sleep and lean on the LiPo protection cutoff + a startup voltage check. The
+**tinyAVR-1 / megaAVR-0 sampled-BOD** modes resolve this cleanly — another nudge
+toward them for power-critical modules.
+
 ## 10. Roadmap & build sequence
 
 **Product priority vs learning priority differ — captured separately.**
@@ -395,16 +471,19 @@ direct-drive LEDs is trivial. Save charlieplex / APA102 cleverness for a
 1. ✅ **DECIDED — 3.3 V target** (Qwiic/STEMMA QT-native + single LiPo). 5 V is an
    optional bench-PoC rail; boards designed voltage-agnostic to migrate.
 2. Power module: dumb (regulation + mux) vs smart '85 telemetry slave (`0x22`).
-3. Idle/wake policy: sleep timeout, wake sources (SENSE PCINT + USI start), and
+3. `INT` attention line: add the single shared open-drain wire (instant
+   deep-sleep wake + data-ready) vs stay strict Qwiic-4 and poll — and SMBus ARA
+   (`0x0C`) vs STATUS-poll for source identification.
+4. Idle/wake policy: sleep timeout, wake sources (SENSE PCINT + USI start), and
    the LED idle-glow brightness budget.
-3. Motherboard chip: bare ATTiny85 (purist, currently leaning this way) vs
+5. Motherboard chip: bare ATTiny85 (purist, currently leaning this way) vs
    tinyAVR-1 (headroom).
-2. LED module v1 drive: 3–4 direct-drive GPIO LEDs (recommended first); APA102
+6. LED module v1 drive: 3–4 direct-drive GPIO LEDs (recommended first); APA102
    RGB deferred to v2.
-3. Modifier status semantics: one-at-a-time modes vs stackable flags (drives the
+7. Modifier status semantics: one-at-a-time modes vs stackable flags (drives the
    keypad local-LED scheme: one-hot decoder vs independent/APA102).
-4. "Programmable" scope: user RPN programs (FRAM + program VM) vs firmware
+8. "Programmable" scope: user RPN programs (FRAM + program VM) vs firmware
    reflash — drives the USB/flash story.
-5. USB path: MCP2221 mailbox for the PoC; V-USB '85 as the aspirational version.
-6. Run the resistor-ladder optimizer and lock the 16 ADC thresholds + margins.
-7. Assign the `WHO_AM_I` device-type id space.
+9. USB path: MCP2221 mailbox for the PoC; V-USB '85 as the aspirational version.
+10. Run the resistor-ladder optimizer and lock the 16 ADC thresholds + margins.
+11. Assign the `WHO_AM_I` device-type id space.
