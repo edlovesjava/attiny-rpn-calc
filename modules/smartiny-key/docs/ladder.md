@@ -335,7 +335,10 @@ means chording is never required.
 
 ## BOM (per keypad)
 
-- 1× passive 4×4 matrix keypad module (8 leads, no controller)
+- 1× passive 4×4 matrix keypad module (8 leads, no controller), or 16× **SPST-NO
+  momentary** tactile switches. NO and momentary are both required: normally-closed
+  keys would short the whole matrix at rest, and latching keys reintroduce the
+  0 Ω multi-close trap that no firmware check can catch.
 - 6× resistors: 5.6 k, 11 k, 16 k, 1.1 k, 2.7 k, 3.9 k (1 % recommended)
 - 1× 39 kΩ (Rload), 1× 10 nF (Csense)
 - Row 1 / Col 1 are 0 Ω jumpers
@@ -344,7 +347,7 @@ For the bench rig, substitute the keypad module with **one jumper wire** (or 2×
 1P4T rotary switches, commons tied), plus a 10-bit AVR board.
 
 For a home-built keypad (pin-compatible with the commercial module): perfboard,
-16× 6 mm tactile switches, 1× 8-pin 0.1" male header, bare tinned bus wire (rows)
+16× SPST-NO momentary 6 mm tactile switches, 1× 8-pin 0.1" male header, bare tinned bus wire (rows)
 and insulated hookup wire (columns).
 
 ## Notes
