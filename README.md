@@ -124,6 +124,7 @@ template everything else forks.
 ## Repo layout
 
 ```
+docs/bench-setup.md      shared tooling + consumables (programmer, caps, analyzer)
 docs/architecture.md     the platform: bus rules, register model, power/sleep/
                          interrupt architecture, chip choices, open decisions
 lib/                     shared libraries
