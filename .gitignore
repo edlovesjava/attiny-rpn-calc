@@ -1,0 +1,7 @@
+# host test binaries
+run_tests
+*.o
+# arduino build output
+build/
+*.hex
+*.elf
