@@ -177,9 +177,17 @@ Concrete values, the decode table and firmware thresholds are in the build sheet
 `tools/ladder_optimizer.py`). Recommended: Rr = [0, 5.6 k, 11 k, 16 k],
 Rc = [0, 1.1 k, 2.7 k, 3.9 k], Rload = 39 k — 14-count min ADC gap with a
 12-count PCINT wake margin.
-- **Single-key only** — two presses create two paths and a garbage voltage. The
-  **latched/sticky modifiers make this a non-issue**: the user never physically
-  holds two keys, so no chording is ever required.
+- **Single-key only** — a second press adds a *parallel* path, so `R_total` falls
+  and `SENSE` rises. Verified over all 120 two-key pairs: **a multi-press never
+  decodes above the lowest key pressed**, but 96 of 120 land on a plausible key
+  and 39 are exact aliases, so analog detection alone cannot catch it. The fix is
+  a firmware policy — **emit on first settle, then require a return to idle
+  before the next key** — which discards collision values entirely. The
+  **latched/sticky modifiers make the restriction a non-issue**: the user never
+  physically holds two keys, so chording is never required. Because
+  `Rr0 = Rc0 = 0 Ω`, keycode 0 is an *absorbing element* (key 0 + anything reads
+  as key 0), so **keep key 0 harmless — never `CLEAR`/`OFF`**. Details and the
+  full table: `docs/keypad-ladder.md` § Multi-press behaviour.
 
 ### 6.2 Pin map (ATTiny85)
 

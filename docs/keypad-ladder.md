@@ -190,6 +190,91 @@ A `margin` consistently squeezed in one direction means `Rload` wants a nudge �
 re-run the optimizer. Margin lost to resistor spread is what the EEPROM
 self-calibration below is for.
 
+### Step 2 — the full 16-switch matrix on a breadboard
+
+Once the jumper rig proves the levels, build the real topology. Electrically it
+is an ordinary 4×4 matrix — the only difference from a scanned keypad is what
+hangs off the row and column lines:
+
+```
+              COL0      COL1      COL2      COL3
+VCC ─[  0Ω]─ ROW0 ─┬─SW0──┬──SW1───┬──SW2───┬──SW3
+VCC ─[5.6kΩ]─ ROW1 ─┼─SW4──┼──SW5───┼──SW6───┼──SW7
+VCC ─[ 11kΩ]─ ROW2 ─┼─SW8──┼──SW9───┼──SW10──┼──SW11
+VCC ─[ 16kΩ]─ ROW3 ─┼─SW12─┼──SW13──┼──SW14──┼──SW15
+                    │      │        │        │
+                 [  0Ω] [1.1kΩ]  [2.7kΩ]  [3.9kΩ]
+                    └──────┴────────┴────────┴──► SENSE ─┬─[39kΩ]─ GND
+                                                          └─[10nF]─ GND
+```
+
+`SWn` sits at (row `n/4`, col `n%4`) and shorts that row line to that column
+line — nothing else. **No diodes**: they would drop voltage into the divider and
+destroy the measurement (see multi-press below for what we get instead).
+
+**Breadboard mapping.** 6 mm tactile switches straddle the centre channel, so
+each one bridges a top-half strip to a bottom-half strip. Place them in 4 groups
+of 4, leaving a spare column between groups:
+
+- **Top half** → jumper each group's 4 strips together = `ROW_i`, then `Rr_i` up
+  to the VCC rail. (One group = one row.)
+- **Bottom half** → jumper the *same offset* across all 4 groups = `COL_j`
+  (4 long buses running the length of the board), then `Rc_j` to `SENSE`.
+
+That is 16 switches, ~24 jumpers, 6 resistors, `Rload` and `Csense`.
+
+> **Tactile-switch gotcha:** the 4 pins are two internally-shorted *pairs*. When
+> the switch straddles the channel, both top pins are one terminal and both
+> bottom pins are the other — so a switch that seems "always closed" is rotated
+> 90°.
+
+> **The matrix is topological, not geometric.** For pure electrical validation
+> you may lay the 16 switches in a single line and wire them logically; only the
+> finished keypad needs to *look* like a grid. Use the 4×4 physical arrangement
+> when you want to test it by feel.
+
+### Multi-press behaviour
+
+Every simultaneous press adds a **parallel** current path, and parallel
+resistance is always lower than either branch — so `R_total` always falls and
+`SENSE` always rises. That yields one crisp, exhaustively verified rule:
+
+> **A multi-press never decodes above the lowest key pressed.**
+> Verified for all 120 two-key combinations: `decoded ≤ min(pressed)`.
+
+| Pressed | Case | R_total | ADC | Decodes as |
+|---|---|---|---|---|
+| 5 + 6 | same row | `Rr1 + (Rc1∥Rc2)` | 879 | **5** (err +6) |
+| 4 + 7 | same row, col0 | `Rr1 + (0∥Rc3)` = `Rr1` | 895 | **4** (err 0) |
+| 8 + 12 | same column | `(Rr2∥Rr3) + Rc0` | 877 | **5** (err +4) |
+| 5 + 10 | diagonal | `(Rr1+Rc1) ∥ (Rr2+Rc2)` | 917 | **3** (err −13) |
+| 0 + anything | absorbing | `0 ∥ x` = 0 | 1023 | **0** (err 0) |
+
+**The deviation check is not enough on its own.** Of the 120 pairs, only **24**
+land far enough off-centre to trip `SUSPECT_ERR`; **96 read as a plausible key**,
+and **39 are exact aliases** of a key that really is pressed. Analog detection
+alone cannot solve this.
+
+**Firmware policy — require a return to idle between keys.** This makes the whole
+problem benign without any extra detection:
+
+1. Idle → key A settles → emit `A`, enter *held*.
+2. While *held*, ignore every reading change — the combined value from a second
+   press is simply never emitted.
+3. Only after `SENSE` returns to idle does the next key become emittable.
+
+Press A-then-B and you get exactly `A`; the collision value is discarded. The one
+residual gap is a *genuinely simultaneous* press (both inside the debounce
+window), which yields a phantom key ≤ min — caught by `SUSPECT_ERR` for 24 pairs
+and undetectable for the rest. Rare in practice, and the sticky-modifier design
+means chording is never required.
+
+> **Design consequence — keep key 0 harmless.** `Rr0 = Rc0 = 0 Ω` makes keycode 0
+> an *absorbing element*: key 0 plus anything reads as exactly key 0. Spurious
+> key-0 events are therefore the single most likely collision artifact, so key 0
+> should carry a benign, idempotent function — never `CLEAR`, `OFF`, or anything
+> destructive.
+
 ## BOM (per keypad)
 
 - 1× passive 4×4 matrix keypad module (8 leads, no controller)
@@ -198,7 +283,8 @@ self-calibration below is for.
 - Row 1 / Col 1 are 0 Ω jumpers
 
 For the bench rig, substitute the keypad module with **one jumper wire** (or 2×
-1P4T rotary switches, commons tied), plus a 10-bit AVR board.
+1P4T rotary switches, commons tied), plus a 10-bit AVR board. For the full
+breadboard matrix, add 16× 6 mm tactile switches and ~24 jumpers.
 
 ## Notes
 
