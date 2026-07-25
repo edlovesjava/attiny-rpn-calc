@@ -70,7 +70,7 @@ keycode. The divider is ratiometric, so the thresholds are identical at 3.3 V or
 5 V.
 
 The catch is that the divider is nonlinear and real resistors come from the E24
-grid, so there's no closed form. [`tools/ladder_optimizer.py`](tools/ladder_optimizer.py)
+grid, so there's no closed form. [`modules/smartiny-key/tools/ladder_optimizer.py`](modules/smartiny-key/tools/ladder_optimizer.py)
 searches for the 8 values (+ `Rload`) that **maximize the minimum ADC gap**
 between adjacent keycodes, subject to two hard constraints: monotonic decode,
 and — the interesting one — the *dimmest* press must still cross the PCINT
@@ -79,10 +79,10 @@ sleeping MCU**.
 
 Locked result: **14-count minimum gap** with a **12-count wake margin**. Values,
 full decode table, thresholds and C decode function are in
-[`docs/keypad-ladder.md`](docs/keypad-ladder.md).
+[`modules/smartiny-key/docs/ladder.md`](modules/smartiny-key/docs/ladder.md).
 
 ```console
-$ python3 tools/ladder_optimizer.py     # fixed seed → reproducible
+$ python3 modules/smartiny-key/tools/ladder_optimizer.py     # fixed seed → reproducible
 ```
 
 ## Design commitments
@@ -124,15 +124,25 @@ template everything else forks.
 ## Repo layout
 
 ```
-docs/architecture.md    the platform: bus rules, register model, keypad &
-                        LED modules, power/sleep/interrupt architecture,
-                        chip choices, roadmap, open decisions
-docs/keypad-ladder.md   locked resistor values, decode table, C thresholds,
-                        BOM, and the breadboard validation rig
-tools/ladder_optimizer.py       the search that produced those values
-tools/ladder_test/ladder_test.ino   bench sketch: decodes all 16 keys and
-                        reports the ADC margin to the nearest boundary
+docs/architecture.md     the platform: bus rules, register model, power/sleep/
+                         interrupt architecture, chip choices, open decisions
+lib/                     shared libraries
+  smartiny-common/       register model — the bus contract (smartiny_regs.h)
+  smartiny-slave/        I²C slave engine: register dispatch, EEPROM address
+  smartiny-hal/          per-chip HAL (attiny85 / tinyavr / host-for-tests)
+modules/                 the smartiny board family — see modules/README.md
+  smartiny-key/          16-key keypad → events        0x20   in progress
+  smartiny-led/          indicator / light output      0x21   next (Board 0)
+  smartiny-pwr/          LiPo telemetry, charge state  0x22   planned
+  smartiny-mem/          NV store for user programs    0x50   planned
+  smartiny-calc/         RPN brain — bus master        —      planned
+tools/                   cross-cutting dev tools
 ```
+
+Modules are named **`smartiny-<role>`** and each follows the same shape
+(`docs/ hardware/ firmware/core/ tests/ tools/`), created as it fills. Every
+module hides its pins and driver complexity behind the shared register model in
+[`lib/smartiny-common/smartiny_regs.h`](lib/smartiny-common/smartiny_regs.h).
 
 Start with [`docs/architecture.md`](docs/architecture.md) — §11 lists the
 decisions still open (power module smart vs dumb, `INT` line vs strict Qwiic-4,

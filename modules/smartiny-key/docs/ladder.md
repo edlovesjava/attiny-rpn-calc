@@ -2,7 +2,7 @@
 
 Concrete values for decoding the passive 4×4 matrix on **one ADC pin** (PB3),
 produced by [`tools/ladder_optimizer.py`](../tools/ladder_optimizer.py). See
-`architecture.md` §6.1 (decode) and §9.6 (wake) for the theory.
+[`architecture.md`](../../../docs/architecture.md) §6.1 (decode) and §9.6 (wake) for the theory.
 
 ## Circuit
 

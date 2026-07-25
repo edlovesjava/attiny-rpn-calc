@@ -7,7 +7,7 @@
  * headroom is left before contact resistance / tolerance / noise cause a
  * misread.
  *
- * Circuit (see docs/keypad-ladder.md):
+ * Circuit (see ../../docs/ladder.md):
  *
  *         Rr                              Rc
  *   VCC ──┬──[  0R ]── Row1     Col1 ──[  0R ]──┬── SENSE

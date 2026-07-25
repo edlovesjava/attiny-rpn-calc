@@ -1,0 +1,34 @@
+# smartiny-calc
+
+The RPN brain — **I²C bus master**, not a slave. **`WHO_AM_I` `0x05`**
+
+Owns the RPN stack, formats the display, polls `smartiny-key` for events, drives
+the SSD1306, and orchestrates system sleep. Everything else on the bus exists to
+serve it.
+
+## Responsibilities
+
+- RPN stack + operations; sticky-modifier *semantics* (the keypad reports which
+  modifiers were latched, the host decides what they mean)
+- Display formatting to the off-the-shelf **SSD1306 at `0x3C`**
+- Bus enumeration: probe addresses, read `WHO_AM_I`, discover what is plugged in
+- Idle/sleep policy — including issuing SSD1306 *display-off* (`0xAE`), which
+  saves the most of any single logic-side measure
+
+## The open chip decision
+
+This is the one seat where a bare ATtiny85 is genuinely contested:
+
+- **ATtiny85 (purist).** USI can master I²C fine, and an RPN display is
+  event-driven — it updates when the stack changes, not continuously — so
+  bandwidth is a non-issue. Sole caveat: 512 B RAM cannot hold an SSD1306
+  framebuffer (1 KB), so it is limited to paged/partial updates.
+- **tinyAVR-1 / megaAVR-0.** Hardware TWI, RAM for a framebuffer, a real USART
+  (which is what lets USB-over-UART work while the calculator keeps running), a
+  spare pin for the shared `INT` line, and UPDI programming that costs no I/O.
+
+The USB story pushes hardest toward the upgrade — see architecture §11 decision 9.
+
+## Status
+
+⬜ Planned — Board 2, after the keypad.
