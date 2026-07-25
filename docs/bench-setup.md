@@ -85,8 +85,21 @@ Flash the Nano with the stock **ArduinoISP** example, then:
 - **Status LEDs** on D9 / D8 / D7 — the ArduinoISP sketch already drives
   heartbeat / error / programming.
 - **All 8 target pins broken out to a header**, so a socketed chip can be
-  bench-tested in place. Add a jumper block to lift the ISP lines (`PB0`/`PB1`/
-  `PB2`) when the chip is running I²C, since they are SDA / LED0 / SCL.
+  bench-tested in place. Break the ISP lines (`PB0`/`PB1`/`PB2`) with a **2×3
+  jumper block** so they can be lifted when the chip is running I²C, since those
+  pins are SDA / LED0 / SCL:
+
+  ```
+          Nano          ZIF socket
+   MOSI ──o     o── pin 5 (PB0/SDA)
+   MISO ──o     o── pin 6 (PB1/LED0)
+    SCK ──o     o── pin 7 (PB2/SCL)
+           ↑ shunts bridge the rows
+  ```
+
+  A "jumper block" is just two male header pins bridged by a removable shunt —
+  shunts on for programming, off to isolate the target. A female-to-female dupont
+  wire substitutes fine if you have no shunts.
 - **A 6-pin ISP header output**, so the jig can also program a finished module
   in-circuit.
 
