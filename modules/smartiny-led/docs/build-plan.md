@@ -23,6 +23,11 @@ any part is bought — this is the payoff of the `core` / `platform` split.
 Breadboard the ATtiny85 with its 3 LEDs and decoupling. Flash the sketch and
 confirm the power-on sweep (LED0 → LED1 → LED2).
 
+Prerequisite: a working ISP path — Nano-as-ISP or a USBasp. A soldered
+programming jig pays for itself here, since ISP shares pins with the bus and
+chips come out to be reflashed constantly; see
+[`docs/bench-setup.md`](../../../docs/bench-setup.md) § Bench builds.
+
 **Proves:** the chip is alive, the fuses/clock are right, the LED pins and
 polarity are correct. If the sweep doesn't run, nothing after this matters.
 

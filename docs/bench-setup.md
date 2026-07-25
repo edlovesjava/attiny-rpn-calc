@@ -52,6 +52,52 @@ An 8-channel 24 MHz FX2LA-style analyzer is plenty: 24 MHz against 100 kHz I²C 
   CH2 watching it. That measures ISR duration against live I²C traffic — the way
   to *verify* the "USI is the only time-critical handler" rule rather than assume it.
 
+## Bench builds — todo
+
+### 1. ATtiny85 programming jig (Nano as ISP) ⬜
+
+Worth soldering to perfboard rather than re-breadboarding each time: because ISP
+shares pins with the I²C bus, chips come out of circuit to be reflashed
+constantly, so this jig gets used all day.
+
+Flash the Nano with the stock **ArduinoISP** example, then:
+
+| Nano | → | ATtiny85 (DIP-8) | |
+|---|---|---|---|
+| D10 | → | pin 1 | `PB5` / RESET |
+| D11 | → | pin 5 | `PB0` / MOSI |
+| D12 | → | pin 6 | `PB1` / MISO |
+| D13 | → | pin 7 | `PB2` / SCK |
+| 5V | → | pin 8 | VCC |
+| GND | → | pin 4 | GND |
+
+> ⚠️ **10 µF between the Nano's own RESET and GND** (+ to RESET). Without it the
+> Nano auto-resets when `avrdude` opens the serial port and programming fails
+> with a sync error. This is *the* Arduino-as-ISP gotcha.
+>
+> The cap must be **absent** while uploading the ArduinoISP sketch *to* the Nano,
+> and **present** while programming a target — so put it on a jumper or a slide
+> switch. Designing that in is most of the jig's value.
+
+**Worth building in**
+
+- **ZIF socket** (or at minimum a DIP-8 socket) — the whole point is fast swaps.
+- **Status LEDs** on D9 / D8 / D7 — the ArduinoISP sketch already drives
+  heartbeat / error / programming.
+- **All 8 target pins broken out to a header**, so a socketed chip can be
+  bench-tested in place. Add a jumper block to lift the ISP lines (`PB0`/`PB1`/
+  `PB2`) when the chip is running I²C, since they are SDA / LED0 / SCL.
+- **A 6-pin ISP header output**, so the jig can also program a finished module
+  in-circuit.
+
+**After building, verify with the fuse step this project needs**
+
+ATtiny85s ship at 1 MHz — 8 MHz internal RC divided by the `CKDIV8` fuse. Select
+**ATtiny85 / 8 MHz internal** in ATTinyCore and run **Burn Bootloader**, which on
+a tiny does not burn a bootloader at all: it just writes the fuses and clears
+`CKDIV8`. Skip it and everything runs 8× slow — most visibly, USI I²C timing
+misses.
+
 ## Bus and later modules
 
 - **SSD1306 0.96" I²C OLED ×2** — build-plan Stage 4 (two devices on one bus), and
