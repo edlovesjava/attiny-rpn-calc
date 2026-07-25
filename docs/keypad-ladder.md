@@ -104,27 +104,47 @@ Before committing the values to a PCB, prove them on a breadboard with any
 10-bit AVR (Uno / Nano / Pro Mini) reading `SENSE`. Sketch:
 [`tools/ladder_test/ladder_test.ino`](../tools/ladder_test/ladder_test.ino).
 
-### Emulating the matrix with 8 switches
+### Emulating the matrix
 
-A real 4×4 matrix needs 16 buttons, but the ladder only ever sees **one
-row↔col short at a time** — so 8 slider switches (4 row + 4 col) cover all 16
-keycodes. The trick is what their common terminals connect to:
+All 16 keycodes are reachable with any rig below. They differ in how easy it is
+to *accidentally* produce an invalid reading — prefer the ones where a bad state
+is structurally impossible rather than merely discouraged.
+
+**1. One jumper wire — recommended.** A key press *is* a short from `Row_i` to
+`Col_j`, so a single wire with one end in a row node and the other in a column
+node **is** the press. Move it 16 times.
 
 ```
-Row1 ─o/o─┐                     close row switch i + col switch j
-Row2 ─o/o─┤                     =>  Row_i ── PRESS ── Col_j
-Row3 ─o/o─┤
-Row4 ─o/o─┼── PRESS  (floating rail — NOT ground)
-Col1 ─o/o─┤
-Col2 ─o/o─┤                     keycode = 4*i + j
-Col3 ─o/o─┤
-Col4 ─o/o─┘
+VCC ──[Rr_i]── Row_i ─────┐
+                          │  ← one jumper = one press
+SENSE ─[Rc_j]── Col_j ────┘     keycode = 4*i + j
 ```
 
-**`PRESS` must float.** Switches that pull row/col pins to *ground* — the usual
-"simulate a digital input" rig — cannot work: both pins land at GND, the row
-resistor just dumps VCC into ground, and `SENSE` stays at 0. Tying the commons
-together instead reproduces the short a real key makes.
+- One wire can only ever connect **one** row to **one** column, so multi-close —
+  and with it the 0 Ω trap below — **cannot happen**.
+- No `PRESS` rail, no extra parts, nothing that can be left latched.
+
+**2. Two jumpers to a common node.** Plant the row jumper, sweep the column
+jumper across its 4 nodes, then advance the row — a faster sweep than re-seating
+both ends. Still exactly one row and one column by construction, so it stays
+safe. The shared node must float (see below).
+
+**3. Two 1P4T rotary switches**, commons tied. A rotary switch is **mutually
+exclusive by construction** — it physically cannot select two rows — so it is as
+safe as a jumper with far better ergonomics. Best option if you have them: one
+knob per axis, dial in row and column.
+
+**4. Eight slide switches.** Works, but they latch — read the 0 Ω trap warning
+below before trusting a reading.
+
+**5. The real 4×4 keypad module.** Highest fidelity; switch to it as soon as it
+arrives. Momentary buttons make multi-close self-correcting.
+
+**For any rig with a common tie (2–4): the shared node must float.** Switches
+that pull row/column pins to *ground* — the usual "simulate a digital input" rig
+— cannot work: both pins land at GND, the row resistor just dumps VCC into
+ground, and `SENSE` stays at 0. Tying the commons **to each other** is what
+reproduces the short a real key makes.
 
 Partial presses are safe: row-only or col-only leaves the path dead-ended, so
 `SENSE` sits at 0 and reads as idle, exactly as on a real keypad. Closing two
@@ -139,6 +159,7 @@ single-key limitation the sticky-modifier design already assumes.
 > flag catches the other multi-close combinations. Momentary buttons make this
 > impossible, but slide switches latch — so make "all switches off between
 > readings" a rig habit, and be suspicious of an unexpected row-0/col-0 result.
+> **Rigs 1–3 above avoid this entirely**, which is the main reason to prefer them.
 
 ### Rig rules
 
@@ -176,8 +197,8 @@ self-calibration below is for.
 - 1× 39 kΩ (Rload), 1× 10 nF (Csense)
 - Row 1 / Col 1 are 0 Ω jumpers
 
-For the bench rig, substitute the keypad module with 8× SPST (ideally DPDT)
-switches wired to a floating `PRESS` rail, plus a 10-bit AVR board.
+For the bench rig, substitute the keypad module with **one jumper wire** (or 2×
+1P4T rotary switches, commons tied), plus a 10-bit AVR board.
 
 ## Notes
 
