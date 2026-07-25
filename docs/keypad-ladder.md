@@ -98,12 +98,77 @@ Wrap with **N consecutive stable reads** (debounce) before emitting a key event.
 Wake: idle SENSE = 0 → any press pulls PB3 above VIH → PCINT3 rising edge wakes
 the MCU, which then runs `decode_key()`. The same wire wakes and decodes.
 
+## Bench validation
+
+Before committing the values to a PCB, prove them on a breadboard with any
+10-bit AVR (Uno / Nano / Pro Mini) reading `SENSE`. Sketch:
+[`tools/ladder_test/ladder_test.ino`](../tools/ladder_test/ladder_test.ino).
+
+### Emulating the matrix with 8 switches
+
+A real 4×4 matrix needs 16 buttons, but the ladder only ever sees **one
+row↔col short at a time** — so 8 slider switches (4 row + 4 col) cover all 16
+keycodes. The trick is what their common terminals connect to:
+
+```
+Row1 ─o/o─┐                     close row switch i + col switch j
+Row2 ─o/o─┤                     =>  Row_i ── PRESS ── Col_j
+Row3 ─o/o─┤
+Row4 ─o/o─┼── PRESS  (floating rail — NOT ground)
+Col1 ─o/o─┤
+Col2 ─o/o─┤                     keycode = 4*i + j
+Col3 ─o/o─┤
+Col4 ─o/o─┘
+```
+
+**`PRESS` must float.** Switches that pull row/col pins to *ground* — the usual
+"simulate a digital input" rig — cannot work: both pins land at GND, the row
+resistor just dumps VCC into ground, and `SENSE` stays at 0. Tying the commons
+together instead reproduces the short a real key makes.
+
+Partial presses are safe: row-only or col-only leaves the path dead-ended, so
+`SENSE` sits at 0 and reads as idle, exactly as on a real keypad. Closing two
+rows (or two cols) puts resistors in parallel and decodes as garbage — the
+same single-key limitation the sticky-modifier design already assumes.
+
+### Rig rules
+
+- **No indicator LEDs on the ladder nodes.** A 220 Ω branch to VCC completely
+  swamps a 39 kΩ network. Use DPDT switches (one pole for the ladder, one for
+  the LED to GND), or drop the LEDs and read the serial output — the raw ADC
+  count is the more useful indicator anyway. Driving two LEDs from the MCU's
+  *decoded* row/col closes the loop nicely.
+- **Power the ladder from the MCU's own VCC.** Required for ratiometric
+  operation, and a 5 V `SENSE` into a 3.3 V ADC pin is out of spec.
+- **`analogReference(DEFAULT)`** (= AVcc). The internal 1.1 V bandgap breaks the
+  scheme entirely.
+- **Allow ~1 ms after a key change.** Source impedance peaks at 13.2 kΩ, so
+  τ ≈ 132 µs with `Csense`; also discard the first conversion after touching the
+  pin so the sample-and-hold settles.
+- Keep `Csense` close to the ADC pin.
+
+### Pass criteria
+
+| Check | Expect |
+|---|---|
+| All 16 keycodes decode, monotonic | key *n* never reads as *n*±1 |
+| `err` vs the design centre | within ≈ ±5 counts |
+| `margin` to nearest boundary | ≥ ~5 counts on **every** key |
+| Idle | ≈ 0, far below `KEY_THRESH[15]` = 507 |
+
+A `margin` consistently squeezed in one direction means `Rload` wants a nudge —
+re-run the optimizer. Margin lost to resistor spread is what the EEPROM
+self-calibration below is for.
+
 ## BOM (per keypad)
 
 - 1× passive 4×4 matrix keypad module (8 leads, no controller)
 - 6× resistors: 5.6 k, 11 k, 16 k, 1.1 k, 2.7 k, 3.9 k (1 % recommended)
 - 1× 39 kΩ (Rload), 1× 10 nF (Csense)
 - Row 1 / Col 1 are 0 Ω jumpers
+
+For the bench rig, substitute the keypad module with 8× SPST (ideally DPDT)
+switches wired to a floating `PRESS` rail, plus a 10-bit AVR board.
 
 ## Notes
 
