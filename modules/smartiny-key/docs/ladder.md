@@ -352,6 +352,12 @@ and insulated hookup wire (columns).
 
 ## Notes
 
+- **Switch contact current is ~56–128 µA** (`VCC / (R_total + Rload)`, so 85 µA at
+  keycode 0 and 56 µA at keycode 15 on a 3.3 V rail). Any tactile switch rating —
+  even a modest "12 V DC 50 mA" — has ~500× margin. This is low-level *dry-circuit*
+  switching, but it is the same regime as every `INPUT_PULLUP` button read, and
+  tactile domes wipe as they snap; combined with the ~50 Ω contact-resistance
+  budget it is a non-issue. Gold-plated contacts are optional insurance.
 - **1 % resistors** recommended; the tightest 14-count gaps leave little room for
   5 % drift stacking.
 - **Ratiometric:** use VCC as the ADC reference (`REFS` = VCC), not the internal
