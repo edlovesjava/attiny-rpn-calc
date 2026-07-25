@@ -32,6 +32,26 @@ spans modules: the tools and the consumables you burn through.
 | Bare tinned + insulated hookup wire | — | perfboard matrix: one axis bare, one insulated |
 | 1 % resistors | have | ladder: 5.6k, 11k, 16k, 1.1k, 2.7k, 3.9k, 39k · pull-ups: 4.7k |
 
+## Using the logic analyzer
+
+An 8-channel 24 MHz FX2LA-style analyzer is plenty: 24 MHz against 100 kHz I²C is
+240× oversampling.
+
+- **Sample at 1–2 MHz, not 24.** Still ~10–20× oversampled, and it avoids the USB
+  buffer overruns that make these clones feel unreliable on long captures.
+- **CH0 → SCL, CH1 → SDA, plus a ground clip to target GND.** A floating ground
+  is the most common cause of garbage edges.
+- **PulseView (sigrok) + the I²C decoder** annotates start/stop, address, R/W,
+  ACK/NAK and data inline — this is what turns "it doesn't respond" into "address
+  ACKed, NAK on byte 2".
+- **It cannot see the keypad ladder.** `SENSE` is analog; a logic analyzer only
+  reports above/below a threshold. Ladder validation stays with the serial output
+  of `ladder_test.ino` plus a multimeter. The analyzer is for the *bus*.
+- **Borrow an LED pin as a trace probe.** The '85 has no spare GPIO, but during
+  bring-up LED0 (PB1) can be toggled high on USI ISR entry and low on exit, with
+  CH2 watching it. That measures ISR duration against live I²C traffic — the way
+  to *verify* the "USI is the only time-critical handler" rule rather than assume it.
+
 ## Bus and later modules
 
 - **SSD1306 0.96" I²C OLED ×2** — build-plan Stage 4 (two devices on one bus), and
