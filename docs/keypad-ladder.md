@@ -233,6 +233,64 @@ That is 16 switches, ~24 jumpers, 6 resistors, `Rload` and `Csense`.
 > finished keypad needs to *look* like a grid. Use the 4×4 physical arrangement
 > when you want to test it by feel.
 
+### Step 2b — perfboard keypad module (recommended)
+
+Tactile switches breadboard badly, so build the **matrix** on perfboard and leave
+the **ladder** on the breadboard. Keep the boundary exactly where the commercial
+module puts it — 16 switches, 8 leads, nothing else:
+
+```
+   perfboard (passive matrix)          breadboard (the clever part)
+  ┌──────────────────────┐
+  │ SW0  SW1  SW2  SW3   │   ROW0 ──┐
+  │ SW4  SW5  SW6  SW7   │   ROW1 ──┤  8-pin      ┌─ Rr0..Rr3 ─ VCC
+  │ SW8  SW9  SW10 SW11  │   ROW2 ──┤  male   ────┤
+  │ SW12 SW13 SW14 SW15  │   ROW3 ──┤  header     ├─ Rc0..Rc3 ─ SENSE
+  └──────────────────────┘   COL0-3─┘             └─ Rload, Csense
+```
+
+**Why this split is worth the effort**
+
+- **Pin-compatible with the sourced module.** Match the standard pinout and your
+  perfboard and the AliExpress keypad become drop-in swaps for each other.
+- **The ladder stays swappable.** Resistor values are the thing still being
+  tuned; keep them where you can pull one with tweezers.
+- **One keypad, three decode strategies.** The same passive board can be driven
+  by the 1-ADC ladder ('85), a classic 8-GPIO scan (tinyAVR), or the 2-ADC
+  variant — so it stays a useful test fixture no matter which way the platform
+  goes.
+
+**Pinout — match the commercial convention**
+
+Single-row 8-pin 0.1" male header, viewed from the front with keys up:
+
+```
+   pin  1   2   3   4   5   6   7   8
+        R1  R2  R3  R4  C1  C2  C3  C4
+```
+
+Cheap modules do vary — **buzz out the real one with a continuity meter** before
+trusting it. The physical key legend is only a firmware lookup table, so any
+consistent wiring works; matching the standard just makes swapping painless.
+
+**Construction**
+
+- The header plugs **straight into the breadboard**: each of the 8 pins lands in
+  its own 5-hole strip, and that strip *is* the row/column node the ladder
+  resistors attach to. No flying leads.
+- On the back, the two axes must cross without shorting: run **one axis in bare
+  tinned bus wire** (rows, soldered straight across the switch pins) and the
+  **other in insulated wire** (columns). Bare-on-bare is the classic way to build
+  a shorted matrix.
+- Each switch's 4 pins are two internally-shorted pairs, so you only need **one
+  pin per pair** — use a diagonal pair and leave the other two unsoldered.
+- 6 mm tactile switches don't natively land on a 0.1" grid (6.5 × 4.5 mm pitch);
+  the legs splay to 3 × 2 holes (7.62 × 5.08 mm) with light persuasion.
+  **Test-fit one before committing to a layout.**
+- Added contact/solder resistance is well under an ohm — negligible against the
+  1.1 kΩ smallest ladder step. Keep `Csense` on the breadboard next to the ADC
+  pin, not out at the keypad.
+
 ### Multi-press behaviour
 
 Every simultaneous press adds a **parallel** current path, and parallel
@@ -283,8 +341,11 @@ means chording is never required.
 - Row 1 / Col 1 are 0 Ω jumpers
 
 For the bench rig, substitute the keypad module with **one jumper wire** (or 2×
-1P4T rotary switches, commons tied), plus a 10-bit AVR board. For the full
-breadboard matrix, add 16× 6 mm tactile switches and ~24 jumpers.
+1P4T rotary switches, commons tied), plus a 10-bit AVR board.
+
+For a home-built keypad (pin-compatible with the commercial module): perfboard,
+16× 6 mm tactile switches, 1× 8-pin 0.1" male header, bare tinned bus wire (rows)
+and insulated hookup wire (columns).
 
 ## Notes
 
