@@ -47,6 +47,13 @@ static const uint16_t KEY_ADC[16] = {
 #define KEY_NONE   0xFF
 #define STABLE_N   3      /* consecutive agreeing decodes before we believe it */
 
+/* decode_key() always snaps to SOME bin, so a bogus voltage (two switches
+ * closed, a floating rail, a wiring fault) still returns a valid-looking key.
+ * Flag readings that sit too far from the design centre instead. 1% resistors
+ * plus contact resistance can legitimately shift a reading ~5 counts, so this
+ * is set just above that; tighten it once real spread is known. */
+#define SUSPECT_ERR 10
+
 uint8_t decode_key(uint16_t adc) {
   if (adc < KEY_THRESH[15]) return KEY_NONE;   /* idle / no press */
   for (uint8_t k = 0; k < 16; k++)             /* first (smallest) k that fits */
@@ -88,12 +95,17 @@ void loop(void) {
   int hi = (stable == 0) ? 999 : (int)KEY_THRESH[stable - 1] - 1 - (int)adc;
   int margin = (lo < hi) ? lo : hi;
 
+  int err = (int)adc - (int)KEY_ADC[stable];
+
   Serial.print(adc);                              Serial.print('\t');
   Serial.print(stable);                           Serial.print('\t');
   Serial.print(stable >> 2);                      Serial.print(',');
   Serial.print(stable & 3);                       Serial.print('\t');
   Serial.print(KEY_ADC[stable]);                  Serial.print('\t');
-  Serial.print((int)adc - (int)KEY_ADC[stable]);  Serial.print('\t');
-  Serial.println(margin);
+  Serial.print(err);                              Serial.print('\t');
+  Serial.print(margin);
+  if (err > SUSPECT_ERR || err < -SUSPECT_ERR)
+    Serial.print(F("\t<< SUSPECT: off-centre — two switches closed, or a wiring/value fault"));
+  Serial.println();
   delay(2);
 }

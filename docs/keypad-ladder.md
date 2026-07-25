@@ -128,8 +128,17 @@ together instead reproduces the short a real key makes.
 
 Partial presses are safe: row-only or col-only leaves the path dead-ended, so
 `SENSE` sits at 0 and reads as idle, exactly as on a real keypad. Closing two
-rows (or two cols) puts resistors in parallel and decodes as garbage — the
-same single-key limitation the sticky-modifier design already assumes.
+rows (or two cols) puts resistors in parallel and decodes wrong — the same
+single-key limitation the sticky-modifier design already assumes.
+
+> ⚠️ **The 0 Ω trap — specific to a *latching* switch rig.** Row1 and Col1 are
+> 0 Ω links, and anything in parallel with 0 Ω **is** 0 Ω. So leaving Row1 closed
+> while also closing Row3 does **not** read as garbage — it reads as a perfectly
+> valid *row 0*, silently. Electrically it is indistinguishable from a clean
+> press, so **no firmware check can catch it**; only the deviation-from-centre
+> flag catches the other multi-close combinations. Momentary buttons make this
+> impossible, but slide switches latch — so make "all switches off between
+> readings" a rig habit, and be suspicious of an unexpected row-0/col-0 result.
 
 ### Rig rules
 
