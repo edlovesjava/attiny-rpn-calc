@@ -129,6 +129,22 @@
 
 #define SMARTINY_KEY_SAVE_MAGIC  0x5Au  /* write to SAVE to persist config    */
 
+/* LED intensity levels: [bright:4][dim:4]. Intensity is a SECOND channel
+ * alongside blink pattern — bright marks transient events (talkback, threshold
+ * pulse), dim marks persistent state (a latched or locked modifier). Levels are
+ * 4-bit and run through GAMMA4 below, because perceived brightness is roughly
+ * duty^(1/2.2) and a linear duty ramp bunches badly at the top.
+ * Practical values: dim 6-8, bright 15. Level 4 and below is barely visible. */
+#define SMARTINY_KEY_REG_LED_LEVELS  0x20  /* R/W [bright:4][dim:4]           */
+#define SMARTINY_KEY_LEVELS_PACK(bright, dim) \
+    ((uint8_t)((((bright) & 0x0Fu) << 4) | ((dim) & 0x0Fu)))
+#define SMARTINY_KEY_LEVEL_BRIGHT(v)  ((uint8_t)(((v) >> 4) & 0x0F))
+#define SMARTINY_KEY_LEVEL_DIM(v)     ((uint8_t)((v) & 0x0F))
+
+/* 4-bit level -> 8-bit PWM duty, gamma 2.2. */
+#define SMARTINY_KEY_GAMMA4 \
+    { 0, 1, 3, 7, 14, 23, 34, 48, 64, 83, 105, 129, 156, 186, 219, 255 }
+
 #define SMARTINY_KEY_NONE  0xFF  /* no key / idle */
 
 /* ---- smartiny-led -------------------------------------------------------- */

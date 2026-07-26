@@ -117,6 +117,7 @@ configure any module uniformly. Module-specific registers start at `0x10`.
 | `0x1C` | `LED_MODE` | R/W | talkback / modifier-indication / manual |
 | `0x1D`–`0x1E` | `TAPHOLD_L/H` | R/W | bit per keycode: defer to release, emit `LONG` on hold |
 | `0x1F` | `SAVE` | W | write `0x5A` to persist config to EEPROM |
+| `0x20` | `LED_LEVELS` | R/W | `[bright:4][dim:4]`, gamma-mapped PWM levels |
 
 **Event byte format** (`EVENT_FIFO`): `[type:2][mod_snapshot:2][keycode:4]`
 - `keycode` 0–15 — which key

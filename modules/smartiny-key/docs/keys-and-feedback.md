@@ -143,10 +143,69 @@ detent, and it tells you that you may now let go.
 A short tap never reaches the blip: solid on press, off on release, exactly like
 any other key. The whole state of the feature is legible from one LED.
 
-Rates are chosen to be unmistakable and cheap. Fast blink is transient so its
-50 % duty costs nothing; an engaged `LOCK`/`TAPHOLD` modifier can persist
-indefinitely, hence a ~3 % duty flash rather than a 50 % blink. See architecture
-§9.5 — average current is the whole game.
+### Intensity is a second channel
+
+PB1 carries hardware PWM (`OC1A`/`OC0B`), so the LED can be dimmed — and that is
+worth more than just "less bright". Use **intensity to separate transient events
+from persistent state**, orthogonally to blink pattern:
+
+| State | Pattern | Intensity |
+|---|---|---|
+| key held — talkback | solid | **bright** |
+| threshold pulse | blip | **bright** |
+| modifier latched | fast blink | **dim** |
+| modifier locked / engaged | brief periodic flash | **dim** |
+| idle | off | — |
+
+Now talkback and modifier state stay distinguishable even when both are lit, and
+a glance tells you whether the LED is *reacting* or *remembering*. `LED_LEVELS`
+(`0x20`) packs `[bright:4][dim:4]`, so a host can also just turn the whole thing
+down at night.
+
+Levels run through a **gamma 2.2 table**, because perceived brightness is roughly
+`duty^(1/2.2)` — a linear duty ramp bunches badly at the top. Practical values are
+**dim 6–8, bright 15**; level 4 and below is barely visible.
+
+```
+level  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+duty   0   1   3   7  14  23  34  48  64  83 105 129 156 186 219 255
+```
+
+### What the intensity actually costs — and where the real cost is
+
+At 1 kΩ series on 3.3 V, full brightness is ~1.5 mA and dim (level 6) is ~0.2 mA.
+Combined with a 3 % duty flash, a locked modifier's LED averages about **6 µA**.
+
+But the LED is not the expensive part. **Keeping the MCU awake to animate it is.**
+An ATtiny85 running at 8 MHz draws ~3–5 mA — twenty times the LED at full
+brightness. So an indicator pattern is really a *wake-duty* decision:
+
+- **Transient patterns are free.** The chip is already awake because you are
+  pressing keys.
+- **A persistent pattern must not hold the chip awake.** That is the actual reason
+  `LOCK` uses a brief periodic flash rather than a 50 % blink: WDT-wake every
+  ~1.5 s, flash ~40 ms, sleep again → ~3 % awake duty, ~0.1 mA average. Holding
+  the chip awake to blink at 8 Hz instead would cost ~3 mA — thirty times more,
+  and none of it in the LED.
+
+Restating the earlier §9.5 point more precisely: it is not LED current that
+matters at this scale, it is **how long the pattern forces the processor to stay
+awake**.
+
+### Implementation: soft PWM, not hardware
+
+Use the same main-loop soft PWM as `smartiny-led` rather than Timer1 hardware
+PWM. One LED makes the cost trivial, the pattern is already written and tested,
+and it avoids a real hazard:
+
+> ⚠️ **ATtiny85 Timer1 has complementary outputs, and `OC1A'` sits on PB0 — which
+> is SDA.** A `COM1A` setting that enables the complement would drive the I²C data
+> line and destroy the bus. If you ever do move to hardware PWM, verify against
+> the datasheet that the complementary output stays disconnected. Timer0 is also
+> unavailable, since `millis()` is what times debounce and `HOLD_MS`.
+
+Note that soft PWM stops when the MCU sleeps — which is fine, because every
+pattern that needs animating already implies being awake.
 
 `LED_MODE` (`0x1C`) enables talkback and modifier indication independently, or
 hands the LED to the host entirely (`LED_MANUAL`, driven via `LED_LOCAL` `0x16`)
