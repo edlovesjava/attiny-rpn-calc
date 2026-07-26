@@ -67,6 +67,45 @@ full level, master brightness full, nothing blinking. **A driver should write on
 and stop refreshing while that holds**, which restores set-and-forget (and lets
 the MCU sleep) whenever dimming is not actually in use.
 
+## SK9822 / APA102 — datasheet notes
+
+From the SK9822 datasheet (Shiji), for the v2 addressable-RGB build:
+
+| Parameter | Symbol | Min | Typ | Max |
+|---|---|---|---|---|
+| Chip supply voltage | VDD | — | **5.0** | 5.3 V |
+| Absolute max supply | VDD | −0.5 | — | 5.5 V |
+| Logic input | VIN | −0.3 | — | VDD+0.3 |
+| Max LED current | Imax | — | — | 20 mA |
+| Clock high / low width | TCLKH/L | — | — | >30 ns |
+| Data setup | TSETUP | — | — | >10 ns |
+| Internal PWM frequency | FPWM | — | 1.2 kHz | — |
+| **Static supply current** | **IDD** | — | **1 mA** | — |
+
+**⚠️ 1 mA standby *per LED*, lit or not.** This is the number that matters. Four
+LEDs draw 4 mA continuously — more than an awake ATtiny85, and about 125 hours of
+a 500 mAh LiPo spent on chips doing nothing. Writing `LED_STATE = 0` does not help;
+the draw is the controllers' oscillators, not the LEDs. **An SK9822 module
+therefore needs a high-side load switch to cut the LED rail for standby**, or it
+must be treated as a mains/USB-powered board. The MCU sleeps; these do not.
+
+**⚠️ 3.3 V is not a specified operating point.** VDD is typ 5.0 with **no minimum
+given**, and the datasheet lists no VIH/VIL at all. So run the LEDs from a **5 V
+rail with a level shifter** (74AHCT125) on data and clock — the "localize the mess
+on the LED module" arrangement from architecture §9.1 is a requirement here, not a
+preference. Running them at 3.3 V is undocumented behaviour.
+
+**What the datasheet confirms:**
+
+- **No minimum clock rate.** The only timing constraints are *floors* on pulse
+  width (>30 ns) and a 30 MHz ceiling — so it can be bit-banged arbitrarily slowly
+  **with interrupts enabled**, which is precisely why it never fights USI I²C and
+  WS2812 does.
+- **8-bit colour plus a 5-bit global brightness field**, modulated internally at
+  1.2 kHz, and it "can maintain a static image". Dimming costs the MCU nothing —
+  unlike the 595, `led_core_is_static()` stays true even when dimmed.
+- 5050 package, 6 pins: SDI, CKI, GND, VCC, CKO, SDO.
+
 ### What this costs above the driver: nothing
 
 The host reads `LED_COUNT` and writes a `LED_STATE` bitmask — it never learns how

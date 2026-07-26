@@ -305,11 +305,17 @@ resistors sized for 3.3 V) so PoC boards migrate to 3.3 V without a respin.
 - **Keypad ADC ladder is unaffected** — it is *ratiometric* (VCC and ADC ref
   scale together), so keycode thresholds as fractions of full-scale are identical
   at 3.3 V or 5 V. The ladder design is voltage-independent.
-- **Addressable LEDs are the one friction point** — WS2812 wants 5 V power and a
-  ≥ 3.5 V data HIGH, so a 3.3 V data line is marginal. **Localize the mess:** run
-  the LED-strip rail at 5 V *on the LED module only*, with a level-shifter
-  (74AHCT125 / SN74LVC1T45) there, keeping the bus pure 3.3 V. (APA102/SK9822
-  tolerate 3.3 V data better — preferred.)
+- **Addressable LEDs are the one friction point.** WS2812 wants 5 V power and a
+  ≥ 3.5 V data HIGH; the SK9822 datasheet specifies VDD typ 5.0 V with **no
+  minimum** and no VIH at all, so 3.3 V operation is undocumented for either.
+  **Localize the mess:** run the LED rail at 5 V *on the LED module only*, with a
+  level-shifter (74AHCT125 / SN74LVC1T45) there, keeping the bus pure 3.3 V.
+  APA102/SK9822 are still preferred over WS2812 — but for *timing* tolerance
+  (clocked protocol, no minimum rate), not logic levels.
+- **Addressable LEDs draw ~1 mA each in standby**, lit or not — the controller's
+  oscillator never sleeps. Four of them exceed an awake ATtiny85, so a module
+  using them needs a **high-side load switch to cut the LED rail** or it wrecks
+  the µA sleep budget in §9.6. See `modules/smartiny-led/hardware/README.md`.
 - **Direct-drive LED gotcha:** at 3.3 V, blue/white/green LEDs (Vf ≈ 3.0–3.4 V)
   barely light. Use **red/amber (Vf ≈ 1.8–2.1 V)** on the LED learning board.
 - **USB / V-USB is the 5 V exception** — V-USB needs ~16.5 MHz, so the USB module
