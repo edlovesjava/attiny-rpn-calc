@@ -111,12 +111,23 @@ configure any module uniformly. Module-specific registers start at `0x10`.
 | `0x13` | `EVENT_COUNT` | R | Queued events |
 | `0x14` | `DEBOUNCE_MS` | R/W | Debounce window |
 | `0x15` | `REPEAT_CFG` | R/W | Key-repeat enable/rate |
-| `0x16` | `LED_LOCAL` | R/W | 1–2 local status LEDs (modifier indication) |
+| `0x16` | `LED_LOCAL` | R/W | LED value when `LED_MANUAL` is set |
+| `0x17` | `HOLD_MS` | R/W | Long-press threshold, ×10 ms |
+| `0x18`–`0x1B` | `MOD0..3_CFG` | R/W | `[mode:2][rsvd:2][keycode:4]` — any key can be a modifier |
+| `0x1C` | `LED_MODE` | R/W | talkback / modifier-indication / manual |
+| `0x1F` | `SAVE` | W | write `0x5A` to persist config to EEPROM |
 
-**Event byte format** (`EVENT_FIFO`): `[type:1][mod_snapshot:3][keycode:4]`
+**Event byte format** (`EVENT_FIFO`): `[type:2][mod_snapshot:2][keycode:4]`
 - `keycode` 0–15 — which key
 - `mod_snapshot` — modifier latch state *at the moment of the event*
-- `type` — press vs release
+- `type` — `PRESS` / `RELEASE` / `LONG` / `REPEAT`
+
+The module reports **facts, not interpretations**: a tap gives `PRESS`+`RELEASE`,
+a hold gives `PRESS`+`LONG`+`RELEASE` with `LONG` firing at the threshold *while
+still held*. The host decides what a long press means — the same division of
+labour as modifiers, where the keypad reports which were latched and the host
+decides what they do. Details:
+`modules/smartiny-key/docs/keys-and-feedback.md`.
 
 The **FIFO decouples host polling from keypad scan timing**: host reads
 `KEY_STATUS`, and if events are pending, drains `EVENT_FIFO`. Each event carries

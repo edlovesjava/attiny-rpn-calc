@@ -56,21 +56,56 @@
 
 /* ---- smartiny-key -------------------------------------------------------- */
 #define SMARTINY_KEY_REG_STATUS      0x10  /* R                               */
-#define SMARTINY_KEY_REG_MODIFIERS   0x11  /* R   sticky/latch bitmask        */
+#define SMARTINY_KEY_REG_MODIFIERS   0x11  /* R   live modifier latch bitmask */
 #define SMARTINY_KEY_REG_EVENT_FIFO  0x12  /* R   read pops one event byte    */
 #define SMARTINY_KEY_REG_EVENT_COUNT 0x13  /* R   queued events               */
 #define SMARTINY_KEY_REG_DEBOUNCE_MS 0x14  /* R/W                             */
 #define SMARTINY_KEY_REG_REPEAT_CFG  0x15  /* R/W key-repeat enable / rate    */
-#define SMARTINY_KEY_REG_LED_LOCAL   0x16  /* R/W local modifier-status LEDs  */
+#define SMARTINY_KEY_REG_LED_LOCAL   0x16  /* R/W LED when LED_MANUAL is set  */
+#define SMARTINY_KEY_REG_HOLD_MS     0x17  /* R/W long-press threshold, ×10ms */
+#define SMARTINY_KEY_REG_MOD0_CFG    0x18  /* R/W see MOD_CFG packing below   */
+#define SMARTINY_KEY_REG_MOD1_CFG    0x19
+#define SMARTINY_KEY_REG_MOD2_CFG    0x1A
+#define SMARTINY_KEY_REG_MOD3_CFG    0x1B
+#define SMARTINY_KEY_REG_LED_MODE    0x1C  /* R/W local-LED behaviour         */
+#define SMARTINY_KEY_REG_SAVE        0x1F  /* W   commit config to EEPROM     */
 
-/* Event byte layout: [type:1][mods:3][keycode:4].
+/* Event byte layout: [type:2][mods:2][keycode:4].
  * mods is the modifier latch state AT THE MOMENT of the event, so the host
- * always knows the context a key was pressed in. */
+ * always knows the context a key was pressed in.
+ *
+ * The module reports FACTS and the host assigns MEANING: a short tap yields
+ * PRESS + RELEASE, a long hold yields PRESS + LONG + RELEASE. The host decides
+ * what "long press" does — the keypad never guesses. */
 #define SMARTINY_EVT_KEYCODE(e)     ((uint8_t)((e) & 0x0F))
-#define SMARTINY_EVT_MODS(e)        ((uint8_t)(((e) >> 4) & 0x07))
-#define SMARTINY_EVT_IS_RELEASE(e)  ((uint8_t)(((e) >> 7) & 0x01))
-#define SMARTINY_EVT_PACK(rel, mods, key) \
-    ((uint8_t)((((rel) & 1u) << 7) | (((mods) & 0x07u) << 4) | ((key) & 0x0Fu)))
+#define SMARTINY_EVT_MODS(e)        ((uint8_t)(((e) >> 4) & 0x03))
+#define SMARTINY_EVT_TYPE(e)        ((uint8_t)(((e) >> 6) & 0x03))
+#define SMARTINY_EVT_PACK(type, mods, key) \
+    ((uint8_t)((((type) & 0x03u) << 6) | (((mods) & 0x03u) << 4) | ((key) & 0x0Fu)))
+
+#define SMARTINY_EVT_PRESS    0u  /* key settled down                          */
+#define SMARTINY_EVT_RELEASE  1u  /* key returned to idle                      */
+#define SMARTINY_EVT_LONG     2u  /* still held at HOLD_MS — fires while held  */
+#define SMARTINY_EVT_REPEAT   3u  /* auto-repeat tick                          */
+
+/* Modifier config byte: [mode:2][reserved:2][keycode:4] — any of the 16 keys
+ * can be a modifier, stored in EEPROM, so the pad layout is not baked in. */
+#define SMARTINY_MOD_CFG_PACK(mode, key) \
+    ((uint8_t)((((mode) & 0x03u) << 6) | ((key) & 0x0Fu)))
+#define SMARTINY_MOD_CFG_MODE(c)  ((uint8_t)(((c) >> 6) & 0x03))
+#define SMARTINY_MOD_CFG_KEY(c)   ((uint8_t)((c) & 0x0F))
+
+#define SMARTINY_MOD_OFF        0u  /* slot unused                             */
+#define SMARTINY_MOD_MOMENTARY  1u  /* active only while physically held       */
+#define SMARTINY_MOD_STICKY     2u  /* one-shot: applies to next key, then clears */
+#define SMARTINY_MOD_LOCK       3u  /* toggles until pressed again (caps-lock) */
+
+/* LED_MODE bits */
+#define SMARTINY_KEY_LED_TALKBACK  (1u << 0)  /* solid while a key is held    */
+#define SMARTINY_KEY_LED_MODIFIER  (1u << 1)  /* blink while a modifier is up */
+#define SMARTINY_KEY_LED_MANUAL    (1u << 7)  /* host drives LED_LOCAL itself */
+
+#define SMARTINY_KEY_SAVE_MAGIC  0x5Au  /* write to SAVE to persist config    */
 
 #define SMARTINY_KEY_NONE  0xFF  /* no key / idle */
 

@@ -23,6 +23,29 @@ the *same* keypad can be driven by the 1-ADC ladder (ATtiny85), a classic 8-GPIO
 scan (tinyAVR), or the 2-ADC variant — it stays a useful fixture whichever way
 the platform goes.
 
+## Pin budget
+
+| Pin | Use |
+|---|---|
+| PB0 / PB2 | SDA / SCL |
+| PB3 | `SENSE` — ladder decode **and** PCINT wake |
+| PB1 | status LED (talkback + modifier state) |
+| PB4 | shared `INT` line (open-drain to master) |
+| PB5 | RESET — kept |
+
+Two free pins, two jobs: **one** LED, because `INT` is what lets the master
+deep-sleep and wake on a keypress. Drop `INT` and you could have two LEDs and
+poll-only — architecture §11 decision 3.
+
+## Modifiers, hold and feedback
+
+Any of the 16 keys can be a modifier (4 slots, EEPROM-stored), in `MOMENTARY`,
+`STICKY` (one-shot) or `LOCK` mode. Long-press is reported as a distinct `LONG`
+event that fires *while the key is still held*. The single LED does talkback
+(solid while held), latched-modifier (fast blink) and lock (slow flash).
+
+Full design: [`docs/keys-and-feedback.md`](docs/keys-and-feedback.md).
+
 ## Status
 
 - ✅ Ladder values locked — 14-count min ADC gap, 12-count PCINT wake margin
