@@ -89,6 +89,22 @@ the draw is the controllers' oscillators, not the LEDs. **An SK9822 module
 therefore needs a high-side load switch to cut the LED rail for standby**, or it
 must be treated as a mains/USB-powered board. The MCU sleeps; these do not.
 
+> **No smart pixel sleeps better** — the ~1 mA *is* the free-running oscillator
+> that maintains the image, so WS2812, SK6812, APA102 and SK9822 all sit in the
+> same band. The only way down is to move the intelligence off the LED: dumb RGB
+> LEDs plus one I²C driver with a real shutdown mode (TI **LP50xx** — LP5009/12/18/24
+> — or IS31FL3193, PCA9685, TLC59108). Note such a driver is *already* an I²C
+> slave, so it needs no ATtiny85 and simply hangs off Qwiic — cheaper and lower
+> power than this module, which is exactly why it cannot replace it: this board
+> exists to be the reference slave.
+>
+> **The cheaper resolution is usually the load switch.** Ask whether the RGB LEDs
+> must stay lit *during sleep*. In this system they need not: the keypad's single
+> MCU-driven LED already indicates latched state at µA, and the OLED carries
+> content. The RGB module is expressive output while awake — and while awake the
+> MCU already costs mA, so 1 mA per LED is noise. Cut the rail and the problem
+> disappears; reach for an LP50xx only if colour must survive deep sleep.
+
 **⚠️ 3.3 V is not a specified operating point.** VDD is typ 5.0 with **no minimum
 given**, and the datasheet lists no VIH/VIL at all. So run the LEDs from a **5 V
 rail with a level shifter** (74AHCT125) on data and clock — the "localize the mess
