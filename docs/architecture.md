@@ -179,8 +179,20 @@ voltage. Idle (no press) reads 0 via `Rload`, cleanly distinct from all keys.
   maximize the minimum voltage gap; publish the 16 thresholds + margins.)*
 - **Unit R ≈ 1–2 kΩ** so tactile-switch contact resistance (~10–50 Ω) is <0.3%
   error. Don't go small.
-- **ADC source impedance** at high codes is tens of kΩ — add **~10 nF at SENSE**,
-  slow the ADC clock, and require N consecutive stable reads (debounce does this).
+- **`Rload` is not optional, and does three jobs.** It completes the divider
+  (without it no current flows, so *every* key reads VCC), it pulls the idle node
+  to a hard 0 instead of leaving the ADC input floating, and its value sets where
+  the 16 levels land — which is what the optimizer tunes.
+- **`Csense` (~10 nF) is mainly a noise/bounce filter**, not a sample-and-hold fix.
+  Worst-case source impedance is 13.2 kΩ (keycode 15), and at a 125 kHz ADC clock
+  the 12 µs sampling window is ~65 τ of the 14 pF S/H — ample. What the cap buys
+  is a ~1.2 kHz low-pass on a high-impedance node that sits next to the I2C lines,
+  plus smoothing of contact-bounce transients. Cost: τ ≈ 132 µs, so allow ~1 ms
+  after a key change. (S/H settling only becomes the binding concern above ~1 MHz
+  ADC clock.)
+- **Source impedance rises with keycode** — 0 Ω at keycode 0, 13.2 kΩ at 15 — so
+  the high codes are both the most tightly spaced *and* the noisiest. Expect any
+  trouble to appear at keys 12–15.
 - **Voltage-independent** — the divider is ratiometric, so thresholds (as
   fractions of full-scale) are identical at 3.3 V or 5 V; the optimizer output
   ports across rails unchanged.
