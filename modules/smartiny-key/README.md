@@ -19,9 +19,8 @@ tested independently:
 
 Layer 1 matches the **commercial 4×4 module pinout**, so a home-built perfboard
 keypad and an off-the-shelf one are drop-in swaps. Because the matrix is passive,
-the *same* keypad can be driven by the 1-ADC ladder (ATtiny85), a classic 8-GPIO
-scan (tinyAVR), or the 2-ADC variant — it stays a useful fixture whichever way
-the platform goes.
+the *same* keypad can be driven by the 1-ADC ladder (ATtiny85) or a classic
+8-GPIO scan (tinyAVR) — it stays a useful fixture whichever way the platform goes.
 
 ## Pin budget
 

@@ -98,6 +98,37 @@ Wrap with **N consecutive stable reads** (debounce) before emitting a key event.
 Wake: idle SENSE = 0 → any press pulls PB3 above VIH → PCINT3 rising edge wakes
 the MCU, which then runs `decode_key()`. The same wire wakes and decodes.
 
+## Why not two ADCs? (closed)
+
+A recurring instinct is to spend a second ADC pin — one for rows, one for columns
+— to get bigger margins. **It cannot work on a passive matrix.**
+
+A keypress is a *single two-terminal short*, so however you wire the network, the
+press contributes exactly one resistance, `Rr_i + Rc_j`. Solving the two-node case
+(rows reaching ADC1, columns reaching ADC2, both nodes independently biased) gives
+`V_A` and `V_B` as functions of **that sum alone** — `V_B` merely mirrors `V_A`.
+Two ADCs measure the same scalar twice: redundancy, not independence, and
+redundancy is cheaper as extra samples on one pin.
+
+Genuine two-axis information requires *driving* one axis, i.e. GPIO scanning —
+which is exactly the thing the '85 has no pins for, and the reason the base-4
+scheme exists.
+
+Two further points settle it:
+
+- **There is no free ADC pin.** PB3 is `SENSE`; the remaining ADC-capable pins are
+  PB2 (SCL), PB5 (RESET) and PB4 — which is the shared `INT` line, and with it
+  system deep-sleep wake.
+- **What would help needs different hardware.** Two independent *8-key* ladders
+  would roughly triple the spacing (mean gap 49 vs 23 counts), but 8 independent
+  switches per ADC means 16 independent switches — not a matrix, so a custom board
+  that also forfeits commercial-keypad compatibility, and still costs `INT`.
+
+**If margins measure tight, use EEPROM self-calibration instead.** Tolerance is
+what eats margin (1 % ≈ ±5 counts against a 6-count worst case); capturing each
+key's real ADC value once at setup removes that error entirely, at the cost of
+firmware rather than a pin.
+
 ## Bench validation
 
 Before committing the values to a PCB, prove them on a breadboard with any
@@ -337,10 +368,9 @@ module puts it — 16 switches, 8 leads, nothing else:
   perfboard and the AliExpress keypad become drop-in swaps for each other.
 - **The ladder stays swappable.** Resistor values are the thing still being
   tuned; keep them where you can pull one with tweezers.
-- **One keypad, three decode strategies.** The same passive board can be driven
-  by the 1-ADC ladder ('85), a classic 8-GPIO scan (tinyAVR), or the 2-ADC
-  variant — so it stays a useful test fixture no matter which way the platform
-  goes.
+- **One keypad, two decode strategies.** The same passive board can be driven by
+  the 1-ADC ladder ('85) or a classic 8-GPIO scan (tinyAVR) — so it stays a
+  useful test fixture no matter which way the platform goes.
 
 **Pinout — match the commercial convention**
 
