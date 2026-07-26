@@ -21,7 +21,7 @@ tests/                  host-side unit tests — `make` (no AVR toolchain needed
 
 ```console
 $ cd tests && make
-31 checks, 0 failures
+42 checks, 0 failures
 ```
 
 ## v1: 3 LEDs, dead simple
