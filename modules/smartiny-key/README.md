@@ -40,7 +40,9 @@ poll-only — architecture §11 decision 3.
 ## Modifiers, hold and feedback
 
 Any of the 16 keys can be a modifier (4 slots, EEPROM-stored), in `MOMENTARY`,
-`STICKY` (one-shot), `LOCK`, or `TAPHOLD` (tap = normal key, hold = toggle) mode. Long-press is reported as a distinct `LONG`
+`STICKY` (one-shot) or `LOCK` mode. A separate tap-hold mask decides *when* a key
+triggers — on press, or only on a long hold (so the short press stays the key's
+normal function). Long-press is reported as a distinct `LONG`
 event that fires *while the key is still held*. The single LED does talkback
 (solid while held), latched-modifier (fast blink) and lock (slow flash).
 
@@ -62,6 +64,7 @@ docs/ladder.md              locked resistor values, decode table, C thresholds,
                             BOM, bench rigs, multi-press behaviour
 tools/ladder_optimizer.py   the E24 search that produced those values
 tools/ladder_test/          bench sketch: decodes 16 keys, reports ADC margin
+docs/layouts.md             worked keymaps: decimal RPN and hex entry
 tools/key_monitor.py        I2C event monitor + EEPROM config tool
 ```
 

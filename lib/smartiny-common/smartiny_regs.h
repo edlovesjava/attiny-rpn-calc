@@ -68,7 +68,27 @@
 #define SMARTINY_KEY_REG_MOD2_CFG    0x1A
 #define SMARTINY_KEY_REG_MOD3_CFG    0x1B
 #define SMARTINY_KEY_REG_LED_MODE    0x1C  /* R/W local-LED behaviour         */
+#define SMARTINY_KEY_REG_TAPHOLD_L   0x1D  /* R/W tap-hold mask, keys 0-7     */
+#define SMARTINY_KEY_REG_TAPHOLD_H   0x1E  /* R/W tap-hold mask, keys 8-15    */
 #define SMARTINY_KEY_REG_SAVE        0x1F  /* W   commit config to EEPROM     */
+
+/* TAPHOLD mask — one bit per keycode. A key with its bit SET defers its normal
+ * function to release (because at press time we cannot yet know whether a tap
+ * or a hold is coming) and emits LONG instead if held past HOLD_MS.
+ *
+ * This is deliberately SEPARATE from modifier mode, because "how a key is
+ * triggered" and "what the latch then does" are independent:
+ *
+ *   modifier slot + bit CLEAR  -> the modifier triggers on PRESS   (dedicated
+ *                                 FUNC key: short press latches)
+ *   modifier slot + bit SET    -> the modifier triggers on LONG    (hex mode:
+ *                                 short press is the digit, hold latches)
+ *   no modifier   + bit SET    -> plain dual-function key; the host decides what
+ *                                 LONG means (hex mode: hold F = ENTER)
+ *
+ * A tap-hold key cannot auto-repeat — holding is already spoken for. */
+#define SMARTINY_TAPHOLD_BIT(key)  ((uint8_t)(1u << ((key) & 0x07)))
+#define SMARTINY_TAPHOLD_IS_HIGH(key) (((key) & 0x08) != 0)
 
 /* Event byte layout: [type:2][mods:2][keycode:4].
  * mods is the modifier latch state AT THE MOMENT of the event, so the host
@@ -95,14 +115,12 @@
 #define SMARTINY_MOD_CFG_MODE(c)  ((uint8_t)(((c) >> 4) & 0x0F))
 #define SMARTINY_MOD_CFG_KEY(c)   ((uint8_t)((c) & 0x0F))
 
+/* What the latch DOES once triggered. WHEN it triggers — on press, or only on a
+ * long hold — is set independently by the TAPHOLD mask below. */
 #define SMARTINY_MOD_OFF        0u  /* slot unused                             */
 #define SMARTINY_MOD_MOMENTARY  1u  /* active only while physically held       */
 #define SMARTINY_MOD_STICKY     2u  /* one-shot: applies to next key, then clears */
 #define SMARTINY_MOD_LOCK       3u  /* toggles until pressed again (caps-lock) */
-#define SMARTINY_MOD_TAPHOLD    4u  /* dual-purpose: tap = normal key,
-                                     * hold = toggle the modifier. The key's
-                                     * normal function is deferred to release,
-                                     * so a TAPHOLD key cannot auto-repeat. */
 
 /* LED_MODE bits */
 #define SMARTINY_KEY_LED_TALKBACK  (1u << 0)  /* solid while a key is held    */

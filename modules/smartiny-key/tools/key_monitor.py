@@ -39,6 +39,8 @@ REG_LED_LOCAL    = 0x16
 REG_HOLD_MS      = 0x17
 REG_MOD_CFG      = 0x18          # 0x18..0x1B
 REG_LED_MODE     = 0x1C
+REG_TAPHOLD_L    = 0x1D
+REG_TAPHOLD_H    = 0x1E
 REG_SAVE         = 0x1F
 
 ID_KEY           = 0x01
@@ -46,7 +48,7 @@ ADDR_KEY         = 0x20
 SAVE_MAGIC       = 0x5A
 
 EVT_NAMES  = {0: "PRESS", 1: "RELEASE", 2: "LONG", 3: "REPEAT"}
-MOD_MODES  = {0: "off", 1: "momentary", 2: "sticky", 3: "lock", 4: "taphold"}
+MOD_MODES  = {0: "off", 1: "momentary", 2: "sticky", 3: "lock"}
 MODE_BY_NAME = {v: k for k, v in MOD_MODES.items()}
 
 
@@ -103,7 +105,6 @@ def selftest():
             print(f"  ok   {format_event(raw)}")
 
     for raw, want_mode, want_key in [(0x3F, "lock", 15), (0x2F, "sticky", 15),
-                                     (0x4F, "taphold", 15),
                                      (0x10, "momentary", 0), (0x00, "off", 0)]:
         mode, key = decode_mod_cfg(raw)
         if (mode, key) != (want_mode, want_key) or pack_mod_cfg(mode, key) != raw:
@@ -111,6 +112,17 @@ def selftest():
             print(f"  FAIL mod_cfg 0x{raw:02X}: got {mode},{key}")
         else:
             print(f"  ok   mod_cfg 0x{raw:02X} -> {mode} on key {key}")
+
+    for key, reg_hi, bit in [(0, False, 0x01), (7, False, 0x80),
+                             (14, True, 0x40), (15, True, 0x80)]:
+        hi = bool(key & 0x08)
+        b = 1 << (key & 0x07)
+        if hi != reg_hi or b != bit:
+            bad += 1
+            print(f"  FAIL taphold key {key}")
+        else:
+            print(f"  ok   taphold key {key:<2} -> "
+                  f"{'TAPHOLD_H' if hi else 'TAPHOLD_L'} bit 0x{b:02X}")
 
     print(f"\n{'FAILED' if bad else 'PASS'} — {bad} failure(s)")
     return 1 if bad else 0
@@ -144,6 +156,10 @@ def show_config(bus, addr):
     print(f"  HOLD_MS     {bus.read_byte_data(addr, REG_HOLD_MS) * 10} ms")
     print(f"  REPEAT_CFG  0x{bus.read_byte_data(addr, REG_REPEAT_CFG):02X}")
     print(f"  LED_MODE    0x{bus.read_byte_data(addr, REG_LED_MODE):02X}")
+    mask = (bus.read_byte_data(addr, REG_TAPHOLD_H) << 8) | \
+           bus.read_byte_data(addr, REG_TAPHOLD_L)
+    keys = [k for k in range(16) if mask & (1 << k)]
+    print(f"  TAPHOLD     0x{mask:04X}  {keys if keys else 'none'}")
     for i in range(4):
         cfg = bus.read_byte_data(addr, REG_MOD_CFG + i)
         mode, key = decode_mod_cfg(cfg)
@@ -178,6 +194,8 @@ def main():
     p.add_argument("--hold-ms", type=int, help="long-press threshold in ms")
     p.add_argument("--debounce-ms", type=int)
     p.add_argument("--led-mode", type=lambda s: int(s, 0))
+    p.add_argument("--taphold", type=int, action="append", metavar="KEYCODE",
+                   help="mark a key tap-hold (repeatable); replaces the mask")
     p.add_argument("--save", action="store_true", help="commit config to EEPROM")
     p.add_argument("--selftest", action="store_true", help="decoder check, no hardware")
     args = p.parse_args()
@@ -206,6 +224,14 @@ def main():
         wrote = True
     if args.led_mode is not None:
         bus.write_byte_data(args.addr, REG_LED_MODE, args.led_mode)
+        wrote = True
+    if args.taphold:
+        mask = 0
+        for k in args.taphold:
+            mask |= 1 << (k & 0x0F)
+        bus.write_byte_data(args.addr, REG_TAPHOLD_L, mask & 0xFF)
+        bus.write_byte_data(args.addr, REG_TAPHOLD_H, (mask >> 8) & 0xFF)
+        print(f"  TAPHOLD  <- 0x{mask:04X}  keys {sorted(args.taphold)}")
         wrote = True
     if args.save:
         bus.write_byte_data(args.addr, REG_SAVE, SAVE_MAGIC)

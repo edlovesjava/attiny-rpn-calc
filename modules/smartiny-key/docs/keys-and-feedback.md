@@ -42,33 +42,40 @@ just fills two slots.
 | `MOMENTARY` | active only while physically held |
 | `STICKY` | **one-shot** — latches on press, applies to the *next* key, then auto-clears |
 | `LOCK` | toggles on each press until pressed again (caps-lock) |
-| `TAPHOLD` | **dual-purpose** — tap = the key's normal function, hold = toggle the modifier |
 
-### `TAPHOLD` — one key, two jobs
+### Trigger and latch are independent
 
-With only 16 keys, spending one entirely on SHIFT is expensive. `TAPHOLD` buys it
-back: a quick tap sends the key's normal keycode, while holding past `HOLD_MS`
-toggles the modifier instead.
+Modifier mode says **what the latch does**. The `TAPHOLD` mask (`0x1D`/`0x1E`,
+one bit per keycode) says **when it triggers**. Keeping them separate is what
+lets one mechanism serve very different keypads:
 
-| Gesture | Result |
+| | bit **clear** — triggers on `PRESS` | bit **set** — triggers on `LONG` |
+|---|---|---|
+| **modifier slot** | dedicated FUNC key: short press latches, no holding | short press is the key's normal function, hold latches |
+| **no modifier slot** | ordinary key | dual-function key — host decides what `LONG` means |
+
+A key with its tap-hold bit set **defers its normal function to release**, because
+at press time the module cannot yet know whether a tap or a hold is coming. So:
+
+| Gesture on a masked key | Events |
 |---|---|
-| tap (release before `HOLD_MS`) | normal key — `PRESS` + `RELEASE` |
-| hold past `HOLD_MS` | modifier engages — `LONG` + `RELEASE`, no `PRESS` |
-| any press **while the modifier is engaged** | modifier disengages — `LONG` + `RELEASE` |
+| tap (release before `HOLD_MS`) | `PRESS` + `RELEASE` — acted as a normal key |
+| hold past `HOLD_MS` | `LONG` + `RELEASE`, **no `PRESS`** — consumed as a mode change |
+| any press **while its modifier is engaged** | `LONG` + `RELEASE` — modifier disengages |
 
-The first event type tells the host how the press was interpreted: **`PRESS`
-means "acted as a normal key", `LONG` means "consumed as a mode change".** That
-also gives an easy escape — once shift is on, *any* press of the shift key turns
-it off, short or long, so you never have to hold to cancel.
+**The first event type tells the host how the press was interpreted:** `PRESS`
+means "acted as a normal key", `LONG` means "consumed as a mode change". That
+also gives an easy escape — once a modifier is on, *any* press of its key clears
+it, short or long, so you never have to hold to cancel.
 
-Two consequences worth knowing before assigning a key to this mode:
+Two costs, so only mask keys that need it:
 
-- **The tap fires on release, not on press.** It has to: at press time the module
-  cannot yet know whether a tap or a hold is coming. For a quick tap that is only
-  the user's own press duration (~60–100 ms), not `HOLD_MS` — but it is a
-  different feel, and it means…
-- **A `TAPHOLD` key cannot auto-repeat.** Holding is already spoken for. Don't put
-  a key you want to hold down (backspace, cursor) on a `TAPHOLD` slot.
+- **The tap fires on release, not press.** For a quick tap that is just your own
+  press duration (~60–100 ms), not `HOLD_MS` — but it is a different feel.
+- **A masked key cannot auto-repeat.** Holding is already spoken for, so never
+  mask a key you want to hold down (backspace, cursor).
+
+Worked examples of both arrangements: [`layouts.md`](layouts.md).
 
 **Sticky is the default and the important one.** It is what makes the whole
 single-ADC design work: the user never has to physically hold two keys, so the
