@@ -32,7 +32,7 @@ bus is even brought up, which makes keypad bring-up far easier.
 ## Modifier model
 
 Any of the 16 keys can be a modifier. There are 4 slots (`MOD0_CFG`…`MOD3_CFG`),
-each packing `[mode:2][reserved:2][keycode:4]`, stored in EEPROM — so which key
+each packing `[mode:4][keycode:4]`, stored in EEPROM — so which key
 is SHIFT is configuration, not firmware. A calculator wanting HP-style `f`/`g`
 just fills two slots.
 
@@ -42,6 +42,33 @@ just fills two slots.
 | `MOMENTARY` | active only while physically held |
 | `STICKY` | **one-shot** — latches on press, applies to the *next* key, then auto-clears |
 | `LOCK` | toggles on each press until pressed again (caps-lock) |
+| `TAPHOLD` | **dual-purpose** — tap = the key's normal function, hold = toggle the modifier |
+
+### `TAPHOLD` — one key, two jobs
+
+With only 16 keys, spending one entirely on SHIFT is expensive. `TAPHOLD` buys it
+back: a quick tap sends the key's normal keycode, while holding past `HOLD_MS`
+toggles the modifier instead.
+
+| Gesture | Result |
+|---|---|
+| tap (release before `HOLD_MS`) | normal key — `PRESS` + `RELEASE` |
+| hold past `HOLD_MS` | modifier engages — `LONG` + `RELEASE`, no `PRESS` |
+| any press **while the modifier is engaged** | modifier disengages — `LONG` + `RELEASE` |
+
+The first event type tells the host how the press was interpreted: **`PRESS`
+means "acted as a normal key", `LONG` means "consumed as a mode change".** That
+also gives an easy escape — once shift is on, *any* press of the shift key turns
+it off, short or long, so you never have to hold to cancel.
+
+Two consequences worth knowing before assigning a key to this mode:
+
+- **The tap fires on release, not on press.** It has to: at press time the module
+  cannot yet know whether a tap or a hold is coming. For a quick tap that is only
+  the user's own press duration (~60–100 ms), not `HOLD_MS` — but it is a
+  different feel, and it means…
+- **A `TAPHOLD` key cannot auto-repeat.** Holding is already spoken for. Don't put
+  a key you want to hold down (backspace, cursor) on a `TAPHOLD` slot.
 
 **Sticky is the default and the important one.** It is what makes the whole
 single-ADC design work: the user never has to physically hold two keys, so the
@@ -72,28 +99,47 @@ the host decides what they do.
 
 ## LED behaviour
 
-One LED, four distinguishable states, in priority order (highest first):
+One LED, in strict priority order (highest first):
 
-| State | Pattern | Reads as |
-|---|---|---|
-| Modifier **locked** | brief flash every ~1.5 s | "armed and settled" |
-| Modifier **latched** (sticky, one-shot) | fast blink ~8 Hz, 50 % | "armed, urgent — next key consumes it" |
-| Key **held** | solid on | talkback: "that decoded" |
-| Idle | off | |
+| Priority | Condition | Pattern | Reads as |
+|---|---|---|---|
+| 1 | **any key held** | solid on | talkback: "that decoded" |
+| 2 | modifier **latched** (sticky one-shot) | fast blink ~8 Hz | "armed — next key consumes it" |
+| 3 | modifier **locked / engaged** | brief flash every ~1.5 s | "armed and settled" |
+| 4 | idle | off | |
 
-So pressing SHIFT latches it and the LED immediately goes to fast blink,
-persisting *after release* — because the latch persists — until the next key
-consumes it and the LED returns to off. Press any normal key and the LED is
-solid only while held.
+**Talkback outranks modifier indication**, which matters: every keypress is
+acknowledged, and the modifier pattern reappears the moment nothing is held. The
+alternative — modifier always winning — would suppress talkback exactly when a
+modifier is active, which is when you most want confirmation.
 
-**Long-press confirmation:** when `LONG` fires, the LED blips **off for ~40 ms
-then back to solid**. You feel the long-press register without looking at the
-screen — the same idea as a mechanical detent.
+**Threshold pulse.** When `HOLD_MS` is reached with a key still down, the LED
+pulses out of solid and back:
 
-Rates are chosen to be unmistakable and cheap: fast blink is transient so its
-50 % duty costs nothing, while `LOCK` can persist indefinitely, hence a ~3 % duty
-flash instead of a 50 % blink. See architecture §9.5 — average current is the
-whole game.
+- ordinary key → **one blip** (~40 ms off, then solid) — the `LONG` event fired
+- `TAPHOLD` key → **double blip** — a mode change is about to happen, so it gets a
+  louder signal
+
+You feel the threshold register without looking at the screen — a software
+detent, and it tells you that you may now let go.
+
+### The `TAPHOLD` shift sequence
+
+| Moment | LED |
+|---|---|
+| press down | **solid on** — talkback, same as any key |
+| still held at `HOLD_MS` | **double blip** — "shift will engage; release now" |
+| release | **fast blink** — shift mode is ON, and stays blinking |
+| press a normal key | solid while held, then back to fast blink |
+| tap shift again | **off** — mode cleared |
+
+A short tap never reaches the blip: solid on press, off on release, exactly like
+any other key. The whole state of the feature is legible from one LED.
+
+Rates are chosen to be unmistakable and cheap. Fast blink is transient so its
+50 % duty costs nothing; an engaged `LOCK`/`TAPHOLD` modifier can persist
+indefinitely, hence a ~3 % duty flash rather than a 50 % blink. See architecture
+§9.5 — average current is the whole game.
 
 `LED_MODE` (`0x1C`) enables talkback and modifier indication independently, or
 hands the LED to the host entirely (`LED_MANUAL`, driven via `LED_LOCAL` `0x16`)
@@ -114,7 +160,7 @@ Setup below: SHIFT = keycode 15 in `STICKY` mode, `HOLD_MS` = 500 ms.
 
 | Event | Byte | LED |
 |---|---|---|
-| `PRESS` key 15, **mods 1** | `0x1F` | fast blink |
+| `PRESS` key 15, **mods 1** | `0x1F` | solid on — talkback |
 | `RELEASE` key 15, **mods 1** | `0x5F` | fast blink — *latch survives release* |
 | `PRESS` key 5, **mods 1** | `0x15` | solid on — key 5 carries the modifier |
 | `RELEASE` key 5, **mods 0** | `0x45` | off — one-shot consumed |
@@ -160,6 +206,36 @@ was spent. Hosts should act on `PRESS`.
 Only key 5 is ever reported. This is the release-to-idle policy from
 [`ladder.md`](ladder.md) doing its job: the collision voltage never becomes an
 event.
+
+**G — `TAPHOLD` shift on key 15** (`MOD0_CFG` = `0x4F`)
+
+*Tap — acts as a normal key. Nothing is emitted on press, because the module
+cannot yet know whether this is a tap or a hold.*
+
+| Moment | Event | Byte | LED |
+|---|---|---|---|
+| press | *(deferred)* | — | solid on |
+| release (before threshold) | `PRESS` key 15, mods 0 | `0x0F` | off |
+| | `RELEASE` key 15, mods 0 | `0x4F` | |
+
+*Hold — engages shift. No `PRESS`, which is how the host knows the normal
+function was suppressed.*
+
+| Moment | Event | Byte | LED |
+|---|---|---|---|
+| press | *(deferred)* | — | solid on |
+| at `HOLD_MS`, still held | `LONG` key 15, **mods 1** | `0x9F` | **double blip** |
+| release | `RELEASE` key 15, mods 1 | `0x5F` | fast blink — shift ON |
+| press key 5 | `PRESS` key 5, mods 1 | `0x15` | solid on |
+| release key 5 | `RELEASE` key 5, **mods 1** | `0x55` | fast blink — not consumed |
+
+*Cancel — any press clears it, and this one fires immediately on press, since a
+tap and a hold would do the same thing.*
+
+| Moment | Event | Byte | LED |
+|---|---|---|---|
+| press | `LONG` key 15, **mods 0** | `0x8F` | solid on |
+| release | `RELEASE` key 15, mods 0 | `0x4F` | off |
 
 ## Testing
 
@@ -211,7 +287,8 @@ through EEPROM endurance, and lets you try settings freely knowing a power cycle
 restores the saved set. (`I2C_ADDR` is the exception — it persists on write,
 because you need a new address to survive the very next power-up.)
 
-Defaults on a blank EEPROM: SHIFT = keycode 15 in `STICKY` mode, `LED_MODE` =
+Defaults on a blank EEPROM: SHIFT = keycode 15 in `STICKY` mode (switch to
+`TAPHOLD` with `--set-mod 0 taphold 15` to make it dual-purpose), `LED_MODE` =
 talkback + modifier, `HOLD_MS` = 500 ms.
 
 ### How the EEPROM actually gets written

@@ -113,7 +113,7 @@ configure any module uniformly. Module-specific registers start at `0x10`.
 | `0x15` | `REPEAT_CFG` | R/W | Key-repeat enable/rate |
 | `0x16` | `LED_LOCAL` | R/W | LED value when `LED_MANUAL` is set |
 | `0x17` | `HOLD_MS` | R/W | Long-press threshold, ×10 ms |
-| `0x18`–`0x1B` | `MOD0..3_CFG` | R/W | `[mode:2][rsvd:2][keycode:4]` — any key can be a modifier |
+| `0x18`–`0x1B` | `MOD0..3_CFG` | R/W | `[mode:4][keycode:4]` — any key can be a modifier |
 | `0x1C` | `LED_MODE` | R/W | talkback / modifier-indication / manual |
 | `0x1F` | `SAVE` | W | write `0x5A` to persist config to EEPROM |
 

@@ -88,17 +88,21 @@
 #define SMARTINY_EVT_LONG     2u  /* still held at HOLD_MS — fires while held  */
 #define SMARTINY_EVT_REPEAT   3u  /* auto-repeat tick                          */
 
-/* Modifier config byte: [mode:2][reserved:2][keycode:4] — any of the 16 keys
- * can be a modifier, stored in EEPROM, so the pad layout is not baked in. */
+/* Modifier config byte: [mode:4][keycode:4] — any of the 16 keys can be a
+ * modifier, stored in EEPROM, so the pad layout is not baked in. */
 #define SMARTINY_MOD_CFG_PACK(mode, key) \
-    ((uint8_t)((((mode) & 0x03u) << 6) | ((key) & 0x0Fu)))
-#define SMARTINY_MOD_CFG_MODE(c)  ((uint8_t)(((c) >> 6) & 0x03))
+    ((uint8_t)((((mode) & 0x0Fu) << 4) | ((key) & 0x0Fu)))
+#define SMARTINY_MOD_CFG_MODE(c)  ((uint8_t)(((c) >> 4) & 0x0F))
 #define SMARTINY_MOD_CFG_KEY(c)   ((uint8_t)((c) & 0x0F))
 
 #define SMARTINY_MOD_OFF        0u  /* slot unused                             */
 #define SMARTINY_MOD_MOMENTARY  1u  /* active only while physically held       */
 #define SMARTINY_MOD_STICKY     2u  /* one-shot: applies to next key, then clears */
 #define SMARTINY_MOD_LOCK       3u  /* toggles until pressed again (caps-lock) */
+#define SMARTINY_MOD_TAPHOLD    4u  /* dual-purpose: tap = normal key,
+                                     * hold = toggle the modifier. The key's
+                                     * normal function is deferred to release,
+                                     * so a TAPHOLD key cannot auto-repeat. */
 
 /* LED_MODE bits */
 #define SMARTINY_KEY_LED_TALKBACK  (1u << 0)  /* solid while a key is held    */

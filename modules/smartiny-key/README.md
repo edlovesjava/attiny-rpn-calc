@@ -40,7 +40,7 @@ poll-only — architecture §11 decision 3.
 ## Modifiers, hold and feedback
 
 Any of the 16 keys can be a modifier (4 slots, EEPROM-stored), in `MOMENTARY`,
-`STICKY` (one-shot) or `LOCK` mode. Long-press is reported as a distinct `LONG`
+`STICKY` (one-shot), `LOCK`, or `TAPHOLD` (tap = normal key, hold = toggle) mode. Long-press is reported as a distinct `LONG`
 event that fires *while the key is still held*. The single LED does talkback
 (solid while held), latched-modifier (fast blink) and lock (slow flash).
 

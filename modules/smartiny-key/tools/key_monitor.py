@@ -46,7 +46,7 @@ ADDR_KEY         = 0x20
 SAVE_MAGIC       = 0x5A
 
 EVT_NAMES  = {0: "PRESS", 1: "RELEASE", 2: "LONG", 3: "REPEAT"}
-MOD_MODES  = {0: "off", 1: "momentary", 2: "sticky", 3: "lock"}
+MOD_MODES  = {0: "off", 1: "momentary", 2: "sticky", 3: "lock", 4: "taphold"}
 MODE_BY_NAME = {v: k for k, v in MOD_MODES.items()}
 
 
@@ -61,12 +61,13 @@ def pack_event(type_id, mods, key):
 
 
 def decode_mod_cfg(c):
-    """Modifier config byte -> (mode_name, keycode). Layout [mode:2][rsvd:2][key:4]."""
-    return MOD_MODES[(c >> 6) & 0x03], c & 0x0F
+    """Modifier config byte -> (mode_name, keycode). Layout [mode:4][key:4]."""
+    mode = (c >> 4) & 0x0F
+    return MOD_MODES.get(mode, f"mode{mode}"), c & 0x0F
 
 
 def pack_mod_cfg(mode_name, key):
-    return ((MODE_BY_NAME[mode_name] & 0x03) << 6) | (key & 0x0F)
+    return ((MODE_BY_NAME[mode_name] & 0x0F) << 4) | (key & 0x0F)
 
 
 def format_event(b):
@@ -101,8 +102,9 @@ def selftest():
         else:
             print(f"  ok   {format_event(raw)}")
 
-    for raw, want_mode, want_key in [(0xCF, "lock", 15), (0x8F, "sticky", 15),
-                                     (0x40, "momentary", 0), (0x00, "off", 0)]:
+    for raw, want_mode, want_key in [(0x3F, "lock", 15), (0x2F, "sticky", 15),
+                                     (0x4F, "taphold", 15),
+                                     (0x10, "momentary", 0), (0x00, "off", 0)]:
         mode, key = decode_mod_cfg(raw)
         if (mode, key) != (want_mode, want_key) or pack_mod_cfg(mode, key) != raw:
             bad += 1
