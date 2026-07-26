@@ -104,6 +104,87 @@ Before committing the values to a PCB, prove them on a breadboard with any
 10-bit AVR (Uno / Nano / Pro Mini) reading `SENSE`. Sketch:
 [`tools/ladder_test/ladder_test.ino`](../tools/ladder_test/ladder_test.ino).
 
+### Run sheet
+
+Everything you need for one bench session, in order.
+
+**1. Parts** — 6 resistors, `Rload`, `Csense`, **one jumper wire**, one Arduino.
+
+| Node | Connect | Value |
+|---|---|---|
+| Row0 | → VCC | wire (0 Ω) |
+| Row1 | → VCC | 5.6 kΩ |
+| Row2 | → VCC | 11 kΩ |
+| Row3 | → VCC | 16 kΩ |
+| Col0 | → `SENSE` | wire (0 Ω) |
+| Col1 | → `SENSE` | 1.1 kΩ |
+| Col2 | → `SENSE` | 2.7 kΩ |
+| Col3 | → `SENSE` | 3.9 kΩ |
+| `SENSE` | → GND | 39 kΩ (`Rload`) |
+| `SENSE` | → GND | 10 nF (`Csense`, keep near the pin) |
+| `SENSE` | → **A0** | — |
+
+Eight breadboard strips (4 row nodes, 4 col nodes) plus a `SENSE` strip. Power the
+ladder from **the Arduino's own VCC** — the decode is ratiometric, so the rail and
+the ADC reference must be the same supply.
+
+> If your Nano is wired as the ISP programmer, **pull the 10 µF cap off its
+> RESET** before uploading this sketch — that cap exists to *stop* auto-reset, so
+> it also blocks a normal upload.
+
+**2. Flash** `ladder_test.ino`, open the serial monitor at **115200**.
+
+**3. Sweep.** Move the single jumper across all 16 row×col combinations. One wire
+can only ever connect one row to one column, so an invalid reading is impossible
+by construction.
+
+**4. Read the output.**
+
+```
+adc     key     r,c     design  err     margin
+1023    0       0,0     1023    0       14
+873     5       1,1     873     0       10
+725     12      3,0     725     0       6
+677     15      3,3     677     0       6
+```
+
+| Column | Means |
+|---|---|
+| `key` | decoded keycode — must match the jumper position |
+| `err` | measured − predicted; **the diagnostic column** |
+| `margin` | counts to the nearest decision boundary; **the pass column** |
+
+### Pass / fail
+
+Predicted margins are **6–14 counts** (worst at keys 12, 13, 15), so:
+
+| `margin` | Verdict |
+|---|---|
+| ≥ 4 | good |
+| 1–3 | decodes, but marginal — expect occasional flicker; consider EEPROM self-calibration |
+| ≤ 0 | misreads — do not proceed to a PCB |
+
+All 16 keys must decode correctly, and `err` should sit within roughly ±5.
+
+### Diagnosing a bad reading
+
+`err` localises a wrong resistor, because each one affects exactly four keys:
+
+| Keys with consistent `err` | Suspect |
+|---|---|
+| 0–3 | Row0 wire (should be 0 Ω) |
+| 4–7 | `Rr1` 5.6 kΩ |
+| 8–11 | `Rr2` 11 kΩ |
+| 12–15 | `Rr3` 16 kΩ |
+| 1, 5, 9, 13 | `Rc1` 1.1 kΩ |
+| 2, 6, 10, 14 | `Rc2` 2.7 kΩ |
+| 3, 7, 11, 15 | `Rc3` 3.9 kΩ |
+| **all 16, same direction** | `Rload` 39 kΩ — or the ADC reference isn't VCC |
+
+An `err` pattern spanning one row *and* one column means you swapped two values.
+`err` drifting the same way across every key is the one case that wants the
+optimizer re-run rather than a parts swap.
+
 ### Emulating the matrix
 
 All 16 keycodes are reachable with any rig below. They differ in how easy it is
@@ -177,13 +258,14 @@ single-key limitation the sticky-modifier design already assumes.
   pin so the sample-and-hold settles.
 - Keep `Csense` close to the ADC pin.
 
-### Pass criteria
+### Extra checks
+
+Pass/fail thresholds and per-resistor diagnosis are in the
+[run sheet](#pass--fail) above. Two additional checks:
 
 | Check | Expect |
 |---|---|
-| All 16 keycodes decode, monotonic | key *n* never reads as *n*±1 |
-| `err` vs the design centre | within ≈ ±5 counts |
-| `margin` to nearest boundary | ≥ ~5 counts on **every** key |
+| Monotonicity | key *n* never reads as *n*±1 |
 | Idle | ≈ 0, far below `KEY_THRESH[15]` = 507 |
 
 A `margin` consistently squeezed in one direction means `Rload` wants a nudge —
