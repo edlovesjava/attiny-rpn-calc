@@ -84,6 +84,18 @@ Definitions: [`lib/smartiny-common/smartiny_regs.h`](../../lib/smartiny-common/s
 - **Reject reserved addresses** (`<0x08`, `>0x77`) — a bad `I2C_ADDR` write would
   otherwise strand the module at an unreachable address.
 
+## RGB without leaving the ecosystem
+
+`led_core`'s 8 channels are colour-agnostic: wire channels 0/1/2 to the R/G/B legs
+of a dumb RGB LED and 3/4/5 to a second, and the 595 build **is** an RGB driver
+with no firmware change. Standby stays under ~10 µA — about 100× better than
+SK9822's 1 mA *per pixel*, and with no load switch to design in.
+
+Full-brightness colours are static pin states, so 7 colours plus off cost nothing
+and the MCU sleeps; only blending needs software PWM, and that is an awake-only
+concern. Details and the comparison table: `hardware/README.md` § RGB the smartiny
+way.
+
 ## v2 and beyond
 
 - **APA102 / SK9822** addressable RGB: clocked protocol, so it can be bit-banged

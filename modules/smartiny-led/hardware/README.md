@@ -67,6 +67,45 @@ full level, master brightness full, nothing blinking. **A driver should write on
 and stop refreshing while that holds**, which restores set-and-forget (and lets
 the MCU sleep) whenever dimming is not actually in use.
 
+## RGB the smartiny way — '85 + 595 + dumb RGB LEDs
+
+The addressable-pixel route is not the only way to get colour, and for a module
+in *this* ecosystem it is not the best one. `led_core` already carries 8 channels
+with per-channel 4-bit levels — **wire channels 0/1/2 to the R/G/B legs of a dumb
+RGB LED and 3/4/5 to a second, and the 595 build is an RGB driver.** No firmware
+change; a "channel" simply means a colour leg instead of a lamp.
+
+| | RGB LEDs | Standby | Static colour | Dimming |
+|---|---|---|---|---|
+| SK9822 / APA102 | many | **1 mA each** | free | free (in-chip) |
+| I²C driver (LP50xx) | 4–12 | µA shutdown | free | free (in-chip) |
+| **'85 + 595 + dumb RGB** | **2 (→5 cascaded)** | **<10 µA** | free | MCU awake |
+| '85 direct, no 595 | 1 | <10 µA | free | MCU awake |
+
+**Standby is won outright.** A CMOS 595 idles under ~10 µA, the '85 in power-down
+is far less, and unlit LEDs draw nothing — roughly 100× better than SK9822, with
+no load switch needed at all.
+
+**The cost is that dimming needs the MCU awake**, since the PWM is software. That
+matters less than it looks: full-brightness colours are *static pin states*, so
+R/G/B and their combinations give **7 distinguishable colours plus off with zero
+refresh and the MCU asleep**. Only blending and fading need PWM — which is the
+§9.5 principle again: transient effects are free because you are already awake;
+persistent states must not hold the chip awake.
+
+**The ecosystem argument is the stronger one.** An LP50xx speaks TI's register
+model: it will not answer `WHO_AM_I`, cannot take an EEPROM-assigned address, and
+needs its own host driver. A '85 module speaks smartiny — one convention, one
+enumeration path, one set of tools.
+
+(Do **not** put a '85 in front of an LP50xx. It would have to be master to the
+driver while slave to the bus, on a single USI, with no spare pins for a private
+I²C bus.)
+
+**Limits, honestly:** this is an *indicator* driver, not a strip driver. 4 bits per
+channel is 4096 colours — ample for status, coarse for smooth fades — and it will
+not drive 30 pixels. For a strip, use SK9822 with a load switch.
+
 ## SK9822 / APA102 — datasheet notes
 
 From the SK9822 datasheet (Shiji), for the v2 addressable-RGB build:
