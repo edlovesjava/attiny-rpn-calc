@@ -32,8 +32,12 @@ refresh loop. (The old "4 LEDs on 2 GPIO" problem only existed when the LEDs
 shared the *keypad's* chip; giving them their own '85 dissolved it — the 4th LED
 is now just a pin-budget fact, not a puzzle.)
 
-A 4th needs either charlieplexing the same 3 pins (up to 6 LEDs, but the refresh
-loop comes back) or APA102 on 2 pins — see `hardware/README.md`.
+Growing past 3 uses the *same* 3 pins: a **74HC595 shift register** gives 8
+independent latching outputs (cascade for 16 or 24), which beats a 74HC138
+decoder — a decoder gives 8 *one-hot states*, so showing two at once means
+multiplexing and the refresh loop returns. Because the host only sees `LED_COUNT`
+and a `LED_STATE` bitmask, moving from 3 GPIO to 8 needs **no register, host or
+test changes**. See `hardware/README.md` § Expansion path.
 
 At 3.3 V use **red/amber LEDs** (Vf ≈ 1.8–2.1 V); blue/white/green (Vf ≈ 3.0–3.4 V)
 barely light. 1 kΩ series resistors work unchanged at 3.3 V and 5 V.

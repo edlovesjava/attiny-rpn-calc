@@ -17,15 +17,48 @@ programmer and costs easy reflashing), and USI I²C takes two more:
 | PB4 | **LED2** | also OC1B |
 | PB5 | RESET | leave as reset |
 
-That leaves **3 free GPIO → 3 direct-drive LEDs**. A 4th needs one of:
-
-- **Charlieplex** the same 3 pins → up to 6 LEDs, but reintroduces a continuous
-  refresh loop competing with USI timing.
-- **APA102 / SK9822** on 2 pins (PB1 data, PB4 clock) → any number of RGB LEDs,
-  fire-and-forget with no refresh, and PB3 stays free for the shared `INT` line.
+That leaves **3 free GPIO → 3 direct-drive LEDs** in v1.
 
 **v1 populates 3 and stays dumb.** The point of Board 0 is the slave skeleton,
 not the light show.
+
+## Expansion path — more LEDs on the same 3 pins
+
+| Approach | LEDs | Simultaneous | Refresh | Parts |
+|---|---|---|---|---|
+| Direct GPIO (**v1**) | 3 | yes | no | none |
+| Charlieplex | 6 | multiplexed | **yes** | none |
+| 74HC138 decoder | 8 | **one at a time** | yes, if >1 | 1 IC |
+| **74HC595 shift register** | **8 → 16 → 24 cascaded** | **yes** | **no** | 1+ IC |
+| APA102 / SK9822 (2 pins) | unlimited RGB | yes | no | the LEDs |
+
+**A decoder gives 8 one-hot states, not 8 controllable LEDs.** A 74HC138 asserts
+exactly one output at a time, so displaying two at once means multiplexing — which
+brings back the continuous refresh loop. Fine if the indicators are genuinely
+mutually exclusive (a mode display); wrong if they are independent flags.
+
+**Prefer the 74HC595.** Same three pins (data, clock, latch), but 8 *independent*
+outputs that **latch and stay put** — no refresh, so the MCU can sleep, the main
+loop carries no timing obligation, and a long I²C transaction cannot glitch the
+display. Cascade a second device for 16, a third for 24, with no extra pins. This
+is the same principle that picks APA102 over WS2812: **on a bus slave, prefer a
+latching driver over a multiplexed one.**
+
+Give each 595 output its own series resistor (it is a logic output, not a
+constant-current driver); use TPIC6B595 if you ever need real current.
+
+### What this costs above the driver: nothing
+
+The host reads `LED_COUNT` and writes a `LED_STATE` bitmask — it never learns how
+the LEDs are wired. `LED_CORE_MAX` is already 8, matching the byte width of
+`LED_STATE`, so **moving from 3 GPIO to 8 via a 595 needs no change to the
+register map, the host, or the tests** — only `LED_COUNT` reports a different
+number. Past 8, add `LED_STATE` extension bytes; block writes already
+auto-increment.
+
+(For a *pure* production LED board, a dedicated I²C driver — PCA9685, TLC59108,
+IS31FL3731 — beats an ATtiny85 outright, since it needs no firmware at all. The
+'85 version earns its place only as the reference slave.)
 
 ## Schematic
 
