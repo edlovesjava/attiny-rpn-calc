@@ -103,8 +103,9 @@ void loop(void)
     /* Soft PWM: one phase step per pass. The loop is deliberately tight — at
      * 8 MHz this gives a few hundred Hz of PWM, well above flicker. Doing this
      * in the main loop rather than a timer ISR is the rule from
-     * architecture.md §9.6: USI must stay the only time-critical handler. */
-    leds_drive(led_core_tick(&leds));
+     * architecture.md §9.6: USI must stay the only time-critical handler.
+     * millis() drives blink gating; PWM advances once per call regardless. */
+    leds_drive(led_core_tick(&leds, (uint16_t)millis()));
 
     /* A host changed our address: persist it, then adopt it. EEPROM.update
      * skips the write (and the wear) when the value already matches. */

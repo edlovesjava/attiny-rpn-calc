@@ -46,8 +46,24 @@ barely light. 1 kΩ series resistors work unchanged at 3.3 V and 5 V.
 | `0x10` | `LED_COUNT` | R | LEDs populated (3) |
 | `0x11` | `LED_STATE` | R/W | on/off bitmask, masked to populated |
 | `0x12` | `LED_BRIGHTNESS` | R/W | global soft-PWM, 0–255 |
-| `0x13…` | `LEDn_RGB` | — | v2 (APA102) |
+| `0x13` | `LED_BLINK` | R/W | bitmask: which LEDs blink rather than sit steady |
+| `0x14` | `LED_BLINK_MS` | R/W | blink period, ×10 ms (0 = no gating) |
+| `0x15` | `LED_BLINK_DUTY` | R/W | on-fraction of the period, 0–255 |
+| `0x18…` | `LEDn_RGB` | — | v2 (APA102) |
 | `0x1F` | `PATTERN` | — | v2 (smart firmware) |
+
+An LED lights when its `LED_STATE` bit is set and — if its `LED_BLINK` bit is also
+set — the blink gate is open. **Blinking lives in the module, not the host**, so
+the host is not obliged to hold a timer (and bus traffic) just to animate an
+indicator. One shared rate and duty covers "these two blink, that one is solid";
+per-LED rates and canned patterns are v2, if ever.
+
+```console
+$ i2cset -y 3 0x21 0x11 0x07   # all three on
+$ i2cset -y 3 0x21 0x13 0x02   # LED1 blinks, LED0 and LED2 stay steady
+$ i2cset -y 3 0x21 0x14 25     # 250 ms period
+$ i2cset -y 3 0x21 0x12 0x30   # dim them all
+```
 
 Definitions: [`lib/smartiny-common/smartiny_regs.h`](../../lib/smartiny-common/smartiny_regs.h).
 

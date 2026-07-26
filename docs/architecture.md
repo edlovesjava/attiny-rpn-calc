@@ -140,9 +140,16 @@ its modifier context so the host always knows how a key was pressed.
 | Reg | Name | Access | Meaning |
 |---|---|---|---|
 | `0x10` | `LED_COUNT` | R | Number of LEDs present |
-| `0x11` | `GLOBAL_BRIGHT` | R/W | Master brightness |
-| `0x12…` | `LEDn_RGB` | R/W | Per-LED color (3 bytes) — re-clocks the strip |
-| `0x1F` | `PATTERN` | R/W | Play a built-in pattern (smart module only) |
+| `0x11` | `LED_STATE` | R/W | On/off bitmask, masked to populated |
+| `0x12` | `LED_BRIGHTNESS` | R/W | Global soft-PWM brightness |
+| `0x13` | `LED_BLINK` | R/W | Bitmask: which LEDs blink rather than sit steady |
+| `0x14` | `LED_BLINK_MS` | R/W | Blink period, ×10 ms (0 = no gating) |
+| `0x15` | `LED_BLINK_DUTY` | R/W | On-fraction of the period |
+| `0x18…` | `LEDn_RGB` | R/W | Per-LED colour, 3 bytes (v2, APA102) |
+| `0x1F` | `PATTERN` | R/W | Built-in pattern (v2, smart module only) |
+
+Blinking lives in the module so the host need not hold a timer — and bus traffic
+— merely to animate an indicator.
 
 ## 6. Keypad module — deep dive
 

@@ -150,9 +150,18 @@
 /* ---- smartiny-led -------------------------------------------------------- */
 #define SMARTINY_LED_REG_COUNT       0x10  /* R   LEDs present                */
 #define SMARTINY_LED_REG_STATE       0x11  /* R/W on/off bitmask              */
-#define SMARTINY_LED_REG_BRIGHTNESS  0x12  /* R/W global brightness           */
-#define SMARTINY_LED_REG_RGB_BASE    0x13  /* R/W per-LED RGB, 3 bytes each   */
-#define SMARTINY_LED_REG_PATTERN     0x1F  /* R/W built-in pattern (smart fw) */
+#define SMARTINY_LED_REG_BRIGHTNESS  0x12  /* R/W global brightness 0-255     */
+#define SMARTINY_LED_REG_BLINK       0x13  /* R/W bitmask: which LEDs blink   */
+#define SMARTINY_LED_REG_BLINK_MS    0x14  /* R/W blink period, x10 ms        */
+#define SMARTINY_LED_REG_BLINK_DUTY  0x15  /* R/W on-fraction of period 0-255 */
+#define SMARTINY_LED_REG_RGB_BASE    0x18  /* R/W per-LED RGB, 3 bytes (v2)   */
+#define SMARTINY_LED_REG_PATTERN     0x1F  /* R/W built-in pattern (v2)       */
+
+/* An LED is lit when its STATE bit is set AND — if its BLINK bit is also set —
+ * the blink gate is currently open. Blinking lives in the module rather than the
+ * host so the host is not obliged to hold a timer (and the bus) just to animate
+ * an indicator. BLINK_MS = 0 disables gating entirely. */
+#define SMARTINY_LED_BLINK_MS_UNIT  10u
 
 /* ---- smartiny-pwr -------------------------------------------------------- */
 #define SMARTINY_PWR_REG_BATT_MV_L   0x10  /* R   battery mV, little-endian   */

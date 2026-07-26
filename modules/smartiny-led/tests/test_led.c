@@ -139,6 +139,61 @@ static void test_led_regs(void)
 
     wr(&s, SMARTINY_LED_REG_BRIGHTNESS, 0x80);
     CHECK_EQ(rd(&s, SMARTINY_LED_REG_BRIGHTNESS), 0x80, "BRIGHTNESS round-trips");
+
+    wr(&s, SMARTINY_LED_REG_BLINK, 0x02);
+    CHECK_EQ(rd(&s, SMARTINY_LED_REG_BLINK), 0x02, "BLINK round-trips");
+    wr(&s, SMARTINY_LED_REG_BLINK, 0xFF);
+    CHECK_EQ(rd(&s, SMARTINY_LED_REG_BLINK), 0x07, "BLINK masked to populated");
+    wr(&s, SMARTINY_LED_REG_BLINK_MS, 50);
+    CHECK_EQ(rd(&s, SMARTINY_LED_REG_BLINK_MS), 50, "BLINK_MS round-trips");
+    wr(&s, SMARTINY_LED_REG_BLINK_DUTY, 0x40);
+    CHECK_EQ(rd(&s, SMARTINY_LED_REG_BLINK_DUTY), 0x40, "BLINK_DUTY round-trips");
+}
+
+/* --- blink gating -------------------------------------------------------- */
+static void test_blink(void)
+{
+    led_core_t l;
+    printf("blink\n");
+
+    /* LED0 steady, LED1 blinking, 500 ms period at 50% duty */
+    led_core_init(&l, 3);
+    l.state = 0x03; l.blink = 0x02; l.blink_ms10 = 50; l.blink_duty = 0x80;
+
+    l.phase = 0;
+    CHECK_EQ(led_core_tick(&l, 0)   & 0x03, 0x03, "t=0ms: both lit");
+    l.phase = 0;
+    CHECK_EQ(led_core_tick(&l, 100) & 0x03, 0x03, "t=100ms: still in on-phase");
+    l.phase = 0;
+    CHECK_EQ(led_core_tick(&l, 300) & 0x03, 0x01, "t=300ms: blinker off, steady stays");
+    l.phase = 0;
+    CHECK_EQ(led_core_tick(&l, 600) & 0x03, 0x03, "t=600ms: next period, on again");
+
+    /* a steady LED must never be gated */
+    led_core_init(&l, 3);
+    l.state = 0x01; l.blink = 0x00; l.blink_ms10 = 50; l.blink_duty = 0x80;
+    uint8_t seen_off = 0;
+    for (uint16_t t = 0; t < 1000; t += 25) {
+        l.phase = 0;
+        if ((led_core_tick(&l, t) & 0x01) == 0) seen_off = 1;
+    }
+    CHECK_EQ(seen_off, 0, "unblinked LED never gated");
+
+    /* period 0 disables gating rather than blacking out */
+    led_core_init(&l, 3);
+    l.state = 0x02; l.blink = 0x02; l.blink_ms10 = 0;
+    l.phase = 0;
+    CHECK_EQ(led_core_tick(&l, 777) & 0x02, 0x02, "BLINK_MS=0 means no gating");
+
+    /* duty controls the on-fraction */
+    led_core_init(&l, 3);
+    l.state = 0x01; l.blink = 0x01; l.blink_ms10 = 100; l.blink_duty = 64; /* 25% */
+    int on = 0;
+    for (uint16_t t = 0; t < 1000; t += 10) {
+        l.phase = 0;
+        if (led_core_tick(&l, t) & 0x01) on++;
+    }
+    CHECK(on >= 20 && on <= 30, "duty 64/255 gives roughly 25% on-time");
 }
 
 /* --- soft PWM ------------------------------------------------------------ */
@@ -151,28 +206,28 @@ static void test_pwm(void)
     led_core_init(&l, 3);
     l.state = 0x07; l.brightness = 0; l.phase = 0;
     int lit = 0;
-    for (int i = 0; i < 256; i++) if (led_core_tick(&l)) lit++;
+    for (int i = 0; i < 256; i++) if (led_core_tick(&l, 0)) lit++;
     CHECK_EQ(lit, 0, "brightness 0 is fully off");
 
     /* full brightness: on for 255 of 256 phases */
     led_core_init(&l, 3);
     l.state = 0x07; l.brightness = 0xFF; l.phase = 0;
     lit = 0;
-    for (int i = 0; i < 256; i++) if (led_core_tick(&l)) lit++;
+    for (int i = 0; i < 256; i++) if (led_core_tick(&l, 0)) lit++;
     CHECK_EQ(lit, 255, "brightness 255 is effectively full on");
 
     /* half brightness ~ 50% duty */
     led_core_init(&l, 3);
     l.state = 0x07; l.brightness = 0x80; l.phase = 0;
     lit = 0;
-    for (int i = 0; i < 256; i++) if (led_core_tick(&l)) lit++;
+    for (int i = 0; i < 256; i++) if (led_core_tick(&l, 0)) lit++;
     CHECK_EQ(lit, 128, "brightness 128 is 50% duty");
 
     /* PWM must never light an LED that is off in STATE */
     led_core_init(&l, 3);
     l.state = 0x01; l.brightness = 0xFF; l.phase = 0;
     uint8_t seen = 0;
-    for (int i = 0; i < 256; i++) seen |= led_core_tick(&l);
+    for (int i = 0; i < 256; i++) seen |= led_core_tick(&l, 0);
     CHECK_EQ(seen, 0x01, "pwm never lights an off LED");
 }
 
@@ -183,6 +238,7 @@ int main(void)
     test_i2c_addr();
     test_autoincrement();
     test_led_regs();
+    test_blink();
     test_pwm();
     printf("\n%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
