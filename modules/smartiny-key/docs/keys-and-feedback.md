@@ -99,6 +99,101 @@ whole game.
 hands the LED to the host entirely (`LED_MANUAL`, driven via `LED_LOCAL` `0x16`)
 so a host can use it for its own signalling.
 
+## Example event sequences
+
+Setup below: SHIFT = keycode 15 in `STICKY` mode, `HOLD_MS` = 500 ms.
+
+**A — plain tap of key 5**
+
+| Event | Byte | LED |
+|---|---|---|
+| `PRESS` key 5, mods 0 | `0x05` | solid on |
+| `RELEASE` key 5, mods 0 | `0x45` | off |
+
+**B — sticky SHIFT, then key 5** (the flow that matters)
+
+| Event | Byte | LED |
+|---|---|---|
+| `PRESS` key 15, **mods 1** | `0x1F` | fast blink |
+| `RELEASE` key 15, **mods 1** | `0x5F` | fast blink — *latch survives release* |
+| `PRESS` key 5, **mods 1** | `0x15` | solid on — key 5 carries the modifier |
+| `RELEASE` key 5, **mods 0** | `0x45` | off — one-shot consumed |
+
+Two conventions to note. The modifier snapshot is the state **after** the event
+is processed, so SHIFT's own `PRESS` already reports `mods=1` — the host learns
+about the latch from the event stream and never has to race a read of
+`MODIFIERS`. And the one-shot is consumed at the **`PRESS`** of the next key, so
+that key's `RELEASE` reporting `mods=0` is the observable marker that the latch
+was spent. Hosts should act on `PRESS`.
+
+**C — long press of key 7**
+
+| Event | Byte | LED |
+|---|---|---|
+| `PRESS` key 7 | `0x07` | solid on |
+| *(500 ms later, still held)* `LONG` key 7 | `0x87` | blip off 40 ms → solid |
+| `RELEASE` key 7 | `0x47` | off |
+
+**D — long press with auto-repeat** (key 3 as a backspace, say)
+
+`PRESS 0x03` → `LONG 0x83` → `REPEAT 0xC3` → `REPEAT 0xC3` → … → `RELEASE 0x43`
+
+**E — `LOCK` mode SHIFT** (`MOD0_CFG` = lock)
+
+| Event | Byte | Note |
+|---|---|---|
+| `PRESS` key 15, mods 1 | `0x1F` | lock engaged |
+| `RELEASE` key 15, mods 1 | `0x5F` | |
+| `PRESS` key 5, mods 1 | `0x15` | shifted |
+| `RELEASE` key 5, **mods 1** | `0x55` | still locked — lock is *not* consumed |
+| `PRESS` key 15, **mods 0** | `0x0F` | pressing SHIFT again clears the lock |
+| `RELEASE` key 15, mods 0 | `0x4F` | |
+
+**F — two keys pressed at once** (5 first, then 6 while still held)
+
+| Event | Byte | Note |
+|---|---|---|
+| `PRESS` key 5 | `0x05` | key 5 settles |
+| *(key 6 also pressed)* | — | **no event** — still *held*, changes ignored |
+| *(both released)* `RELEASE` key 5 | `0x45` | back to idle |
+
+Only key 5 is ever reported. This is the release-to-idle policy from
+[`ladder.md`](ladder.md) doing its job: the collision voltage never becomes an
+event.
+
+## Testing
+
+**The ATtiny85 has no spare pin for a debug UART** — PB0/PB2 are the bus, PB3 is
+`SENSE`, PB1 is the LED, PB4 is `INT`. That constraint is exactly why the
+architecture is shaped the way it is, and it gives three test layers instead:
+
+1. **Host unit tests — where the real testing happens.** `key_core` is pure C, so
+   feed it synthetic ADC values and a fake clock and assert the emitted event
+   stream. **The sequences above are the test vectors**: scenario B pins down
+   sticky consumption, C pins down hold timing, F pins down collision handling.
+   No hardware, no bus, runs in milliseconds.
+2. **The bus, via `tools/key_monitor.py`.** Drains `EVENT_FIFO` over I²C and
+   pretty-prints the decoded stream — this *is* the debug console.
+
+   ```console
+   $ ./key_monitor.py --bus 3
+   smartiny-key at 0x20, firmware v0.1
+   [   1.204] 0x1F  PRESS   key=15 (r3,c3) mods=01
+   [   1.336] 0x5F  RELEASE key=15 (r3,c3) mods=01
+   [   2.011] 0x15  PRESS   key=5  (r1,c1) mods=01
+   [   2.140] 0x45  RELEASE key=5  (r1,c1)
+   ```
+
+   It also warns on `FIFO OVERFLOW`, which means the host is polling too slowly.
+   `--selftest` checks the decoder with no hardware attached.
+3. **The LED, before any bus exists.** Talkback works with nothing but power, so
+   during bring-up it confirms the ADC decode and debounce are alive before I²C
+   is in the picture. Add the logic analyzer on SDA/SCL when the question becomes
+   "why did the master not see that".
+
+If you truly need a printf during bring-up, temporarily bit-bang serial on
+**PB4** — `INT` is the last pin to become load-bearing.
+
 ## Configuration and persistence
 
 | Reg | Name | Meaning |
@@ -118,6 +213,40 @@ because you need a new address to survive the very next power-up.)
 
 Defaults on a blank EEPROM: SHIFT = keycode 15 in `STICKY` mode, `LED_MODE` =
 talkback + modifier, `HOLD_MS` = 500 ms.
+
+### How the EEPROM actually gets written
+
+**Over I²C, at runtime — no programmer involved.** That is the whole point of
+putting the config in registers: write `MOD0_CFG`, then write `0x5A` to `SAVE`.
+
+```console
+$ ./key_monitor.py --bus 3 --set-mod 0 sticky 15 --hold-ms 500 --save
+  MOD0_CFG <- sticky on key 15
+  config committed to EEPROM
+```
+
+Configuration is **bus data, not firmware** — so a soldered-down '85 stays fully
+configurable, and the host itself can reconfigure the keypad at boot.
+
+Two other paths, for completeness:
+
+- **Bulk provisioning at flash time.** `avrdude -U eeprom:w:defaults.hex:i`
+  writes a whole EEPROM image alongside the firmware — useful for setting up a
+  batch of identical modules.
+- **In-circuit ISP after soldering.** Put a 6-pin ISP header on the module and
+  you can reflash *firmware* without desoldering anything.
+
+> **This is the payoff of never repurposing PB5.** RESET is intact, so ordinary
+> low-voltage ISP keeps working on a finished board forever. Had we taken PB5 as
+> a GPIO (the tempting way to get a 4th LED early on), reprogramming would need a
+> high-voltage programmer. One socket-vs-soldered caveat: ISP uses PB0/PB1/PB2,
+> which are SDA/LED/SCL — so **unplug the Qwiic cable before programming**, or
+> the rest of the bus fights the programmer.
+
+**Socket or solder?** Keep a DIP-8 socket on perfboard prototypes — chips get
+swapped constantly while the firmware is in flux, and a socket costs pennies. On
+a real PCB, solder the part and fit the ISP header instead: with RESET preserved,
+in-circuit reflashing makes the socket unnecessary.
 
 > Keycode 15 is deliberate: it is the *farthest* code from the keycode-0
 > absorbing element, so a modifier is the key least likely to be produced

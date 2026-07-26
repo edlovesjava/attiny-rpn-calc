@@ -62,6 +62,7 @@ docs/ladder.md              locked resistor values, decode table, C thresholds,
                             BOM, bench rigs, multi-press behaviour
 tools/ladder_optimizer.py   the E24 search that produced those values
 tools/ladder_test/          bench sketch: decodes 16 keys, reports ADC margin
+tools/key_monitor.py        I2C event monitor + EEPROM config tool
 ```
 
 ## Key firmware rules
