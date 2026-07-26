@@ -21,7 +21,7 @@ tests/                  host-side unit tests — `make` (no AVR toolchain needed
 
 ```console
 $ cd tests && make
-42 checks, 0 failures
+54 checks, 0 failures
 ```
 
 ## v1: 3 LEDs, dead simple
@@ -53,7 +53,8 @@ barely light. 1 kΩ series resistors work unchanged at 3.3 V and 5 V.
 | `0x13` | `LED_BLINK` | R/W | bitmask: which LEDs blink rather than sit steady |
 | `0x14` | `LED_BLINK_MS` | R/W | blink period, ×10 ms (0 = no gating) |
 | `0x15` | `LED_BLINK_DUTY` | R/W | on-fraction of the period, 0–255 |
-| `0x18…` | `LEDn_RGB` | — | v2 (APA102) |
+| `0x16`–`0x19` | `LED_LEVELn` | R/W | per-LED brightness, 4 bits each, 2 LEDs per register |
+| `0x1A…` | `LEDn_RGB` | — | v2 (APA102) |
 | `0x1F` | `PATTERN` | — | v2 (smart firmware) |
 
 An LED lights when its `LED_STATE` bit is set and — if its `LED_BLINK` bit is also

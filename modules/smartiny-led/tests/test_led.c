@@ -231,6 +231,51 @@ static void test_pwm(void)
     CHECK_EQ(seen, 0x01, "pwm never lights an off LED");
 }
 
+/* --- per-LED levels ------------------------------------------------------ */
+static void test_levels(void)
+{
+    smartiny_slave_t s; led_core_t l;
+    setup(&s, &l, 3);
+    printf("per-LED levels\n");
+
+    /* default is full on, so existing behaviour is unchanged */
+    CHECK_EQ(rd(&s, SMARTINY_LED_REG_LEVEL_BASE), 0xFF, "levels default to full");
+
+    /* one register carries two LEDs: low nibble = even, high nibble = odd */
+    wr(&s, SMARTINY_LED_REG_LEVEL_BASE, 0x84);          /* LED0=4, LED1=8 */
+    CHECK_EQ(rd(&s, SMARTINY_LED_REG_LEVEL_BASE), 0x84, "level pair round-trips");
+    CHECK_EQ(l.level[0], 4, "low nibble is the even LED");
+    CHECK_EQ(l.level[1], 8, "high nibble is the odd LED");
+
+    /* duty must track the level over one 16-phase cycle */
+    led_core_init(&l, 3);
+    l.state = 0x07;
+    l.level[0] = 15; l.level[1] = 8; l.level[2] = 0;
+    int on0 = 0, on1 = 0, on2 = 0;
+    for (int i = 0; i < 16; i++) {
+        uint8_t m = led_core_tick(&l, 0);
+        if (m & 0x01) on0++;
+        if (m & 0x02) on1++;
+        if (m & 0x04) on2++;
+    }
+    CHECK_EQ(on0, 16, "level 15 is fully on, not 15/16");
+    CHECK_EQ(on1,  8, "level 8 is half duty");
+    CHECK_EQ(on2,  0, "level 0 is fully off");
+
+    /* static detection: what tells a 595 driver it may stop refreshing */
+    led_core_init(&l, 3);
+    l.state = 0x05;
+    CHECK_EQ(led_core_is_static(&l), 1, "full levels, no blink -> static");
+    l.level[0] = 8;
+    CHECK_EQ(led_core_is_static(&l), 0, "a dimmed lit LED -> must refresh");
+    l.level[0] = 15; l.level[1] = 3;
+    CHECK_EQ(led_core_is_static(&l), 1, "dimming an UNLIT LED still static");
+    l.blink = 0x01;
+    CHECK_EQ(led_core_is_static(&l), 0, "blinking -> must refresh");
+    l.blink = 0; l.brightness = 0x80;
+    CHECK_EQ(led_core_is_static(&l), 0, "master dimming -> must refresh");
+}
+
 int main(void)
 {
     printf("smartiny-led host tests\n\n");
@@ -239,6 +284,7 @@ int main(void)
     test_autoincrement();
     test_led_regs();
     test_blink();
+    test_levels();
     test_pwm();
     printf("\n%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

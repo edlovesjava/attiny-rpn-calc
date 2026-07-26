@@ -154,7 +154,8 @@
 #define SMARTINY_LED_REG_BLINK       0x13  /* R/W bitmask: which LEDs blink   */
 #define SMARTINY_LED_REG_BLINK_MS    0x14  /* R/W blink period, x10 ms        */
 #define SMARTINY_LED_REG_BLINK_DUTY  0x15  /* R/W on-fraction of period 0-255 */
-#define SMARTINY_LED_REG_RGB_BASE    0x18  /* R/W per-LED RGB, 3 bytes (v2)   */
+#define SMARTINY_LED_REG_LEVEL_BASE  0x16  /* R/W 0x16-0x19: per-LED 4-bit    */
+#define SMARTINY_LED_REG_RGB_BASE    0x1A  /* R/W per-LED RGB, 3 bytes (v2)   */
 #define SMARTINY_LED_REG_PATTERN     0x1F  /* R/W built-in pattern (v2)       */
 
 /* An LED is lit when its STATE bit is set AND — if its BLINK bit is also set —
@@ -162,6 +163,20 @@
  * host so the host is not obliged to hold a timer (and the bus) just to animate
  * an indicator. BLINK_MS = 0 disables gating entirely. */
 #define SMARTINY_LED_BLINK_MS_UNIT  10u
+
+/* Per-LED brightness, 4 bits each, two LEDs per register:
+ *   0x16 = [LED1:4][LED0:4],  0x17 = [LED3:4][LED2:4],  ... up to LED7.
+ * 15 = full on (the default), 0 = off. LED_BRIGHTNESS still applies on top as a
+ * master level, so a host can dim the whole board without disturbing the mix.
+ *
+ * Per-LED dimming costs no more than global dimming on a shift-register driver:
+ * either way the register must be re-clocked each PWM phase (there is no spare
+ * pin for the 595's OE). ~16 writes per frame is ~1.6 % CPU at 100 Hz. Note the
+ * corollary — dimming forfeits the shift register's set-and-forget property, so
+ * a driver should stop refreshing when every level is 0 or 15. */
+#define SMARTINY_LED_LEVEL_MAX      15u
+#define SMARTINY_LED_LEVEL_GET(reg, odd) \
+    ((uint8_t)((odd) ? (((reg) >> 4) & 0x0Fu) : ((reg) & 0x0Fu)))
 
 /* ---- smartiny-pwr -------------------------------------------------------- */
 #define SMARTINY_PWR_REG_BATT_MV_L   0x10  /* R   battery mV, little-endian   */

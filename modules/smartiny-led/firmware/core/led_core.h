@@ -20,6 +20,7 @@ typedef struct {
     uint8_t  blink;       /* bitmask: LEDs gated by the blink phase       */
     uint8_t  blink_ms10;  /* blink period in units of 10 ms; 0 = disabled */
     uint8_t  blink_duty;  /* on-fraction of the period, 0..255            */
+    uint8_t  level[LED_CORE_MAX]; /* per-LED brightness 0..15, 15 = full   */
     uint8_t  phase;       /* free-running PWM phase counter               */
 } led_core_t;
 
@@ -38,5 +39,11 @@ void    led_core_write(uint8_t reg, uint8_t val, void *ctx);
  * synthetic value under test). It drives blink gating only; PWM advances once
  * per call regardless, so PWM frequency follows loop speed. */
 uint8_t led_core_tick(led_core_t *l, uint16_t now_ms);
+
+/* True when nothing needs animating — every lit LED is at full level, global
+ * brightness is full, and no LED is blinking. A shift-register driver should
+ * write the register once and stop refreshing while this holds, which restores
+ * the 595's set-and-forget behaviour (and lets the MCU sleep). */
+uint8_t led_core_is_static(const led_core_t *l);
 
 #endif /* LED_CORE_H */

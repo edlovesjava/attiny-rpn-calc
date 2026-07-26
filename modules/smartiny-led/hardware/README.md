@@ -47,6 +47,26 @@ latching driver over a multiplexed one.**
 Give each 595 output its own series resistor (it is a logic output, not a
 constant-current driver); use TPIC6B595 if you ever need real current.
 
+### Dimming a shift register
+
+The 595's **`OE`** pin would give clean global PWM by blanking all outputs, but it
+is a *fourth* pin and SER/SRCLK/RCLK already take all three. Tie `OE` low and dim
+by **re-clocking the register** instead — write the pattern, write the gated
+pattern, repeat.
+
+The honest consequence: **dimming forfeits the set-and-forget property** that made
+the 595 attractive. Two things keep that acceptable:
+
+- **It is cheap.** A 595 write is ~25 GPIO operations ≈ 10 µs; 16 PWM phases per
+  frame at 100 Hz is 160 µs per 10 ms — about **1.6 % CPU**. Nothing like WS2812.
+- **Per-LED dimming costs exactly the same as global**, since the register must be
+  re-clocked either way. So there is no reason to settle for a global-only knob.
+
+`led_core_is_static()` reports when nothing needs animating — every lit LED at
+full level, master brightness full, nothing blinking. **A driver should write once
+and stop refreshing while that holds**, which restores set-and-forget (and lets
+the MCU sleep) whenever dimming is not actually in use.
+
 ### What this costs above the driver: nothing
 
 The host reads `LED_COUNT` and writes a `LED_STATE` bitmask — it never learns how
