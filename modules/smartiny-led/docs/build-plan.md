@@ -11,7 +11,7 @@ Each stage below ends in something observable. Do not move on until it is.
 
 ```console
 $ cd modules/smartiny-led/tests && make
-31 checks, 0 failures
+42 checks, 0 failures
 ```
 
 Covers the register engine (common header, read-only identity, pointer
