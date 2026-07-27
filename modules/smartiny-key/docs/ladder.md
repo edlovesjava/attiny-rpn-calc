@@ -135,7 +135,115 @@ Before committing the values to a PCB, prove them on a breadboard with any
 10-bit AVR (Uno / Nano / Pro Mini) reading `SENSE`. Sketch:
 [`tools/ladder_test/ladder_test.ino`](../tools/ladder_test/ladder_test.ino).
 
-### Run sheet
+### DMM bench — no MCU required
+
+The quickest first pass: build the ladder, sweep it with two jumpers, read it with
+a multimeter. This validates the *resistors* before any firmware is involved, and
+it gives **two independent checks** — one of which needs no power supply at all.
+
+#### Schematic
+
+```
+      +V ──┬──[ wire ]── ROW0 ──┐
+           ├──[ 5.6k ]── ROW1 ──┤
+           ├──[ 11k  ]── ROW2 ──┤   ← JUMPER A picks one row
+           └──[ 16k  ]── ROW3 ──┘
+                                │
+                              PRESS        ← the two jumpers meet here
+                                │
+           ┌──[ wire ]── COL0 ──┤
+           ├──[ 1.1k ]── COL1 ──┤   ← JUMPER B picks one column
+           ├──[ 2.7k ]── COL2 ──┤
+           └──[ 3.9k ]── COL3 ──┘
+           │
+        SENSE ──┬──[ 39k ]── GND        (Rload)
+                └──● DMM red probe       (DMM black → GND)
+
+      keycode = 4 × rowA + colB
+```
+
+`PRESS` is the floating rail from § Emulating the matrix — it must **not** go to
+ground. Closing one row and one column onto it reproduces exactly the short a real
+key makes.
+
+#### Breadboard placement
+
+Nine tie-point strips. Column numbers are arbitrary — just keep them apart:
+
+| Strip | Node | Component to fit |
+|---|---|---|
+| 1 | `ROW0` | plain wire from **+ rail** |
+| 3 | `ROW1` | **5.6 kΩ** from + rail |
+| 5 | `ROW2` | **11 kΩ** from + rail |
+| 7 | `ROW3` | **16 kΩ** from + rail |
+| 12 | `PRESS` | *(nothing — the two jumpers meet here)* |
+| 17 | `COL0` | plain wire to **SENSE** |
+| 19 | `COL1` | **1.1 kΩ** to SENSE |
+| 21 | `COL2` | **2.7 kΩ** to SENSE |
+| 23 | `COL3` | **3.9 kΩ** to SENSE |
+| 27 | `SENSE` | **39 kΩ** down to **− rail**; DMM red probe here |
+
+- **Jumper A**: strip 12 → one of {1, 3, 5, 7}
+- **Jumper B**: strip 12 → one of {17, 19, 21, 23}
+
+Leave `Csense` out for DMM work — a 10 nF cap does nothing for a DC measurement.
+It is only there to filter for the ADC.
+
+#### Check 1 — resistance, with the power OFF
+
+The cleanest check, and it needs no supply. DMM in **Ω**, probes on the **+ rail**
+and **SENSE**:
+
+> reading = `Rr_i + Rc_j` — the `Rtot` column below, nothing else.
+
+The only path between those two points runs through the two jumpers; every other
+row and column dead-ends. So this isolates the ladder from `Rload` entirely and
+proves you grabbed the right parts, with no dependence on supply accuracy.
+
+#### Check 2 — voltage, powered
+
+DMM in **DC volts**, black on **− rail**, red on **SENSE**. Then:
+
+> **Measure the supply too, and compare the *ratio*, not the volts.**
+> `V_sense ÷ V_supply` should equal the `frac` column.
+
+The divider is ratiometric, so the fraction is the real specification — comparing
+raw volts just imports your supply's error into the result.
+
+| key | r,c | Rtot (Ω) | frac | V @3.3 V | V @5.0 V |
+|---|---|---|---|---|---|
+| 0 | 0,0 | 0 | 1.0000 | 3.300 | 5.000 |
+| 1 | 0,1 | 1100 | 0.9726 | 3.209 | 4.863 |
+| 2 | 0,2 | 2700 | 0.9353 | 3.086 | 4.676 |
+| 3 | 0,3 | 3900 | 0.9091 | 3.000 | 4.545 |
+| 4 | 1,0 | 5600 | 0.8744 | 2.886 | 4.372 |
+| 5 | 1,1 | 6700 | 0.8534 | 2.816 | 4.267 |
+| 6 | 1,2 | 8300 | 0.8245 | 2.721 | 4.123 |
+| 7 | 1,3 | 9500 | 0.8041 | 2.654 | 4.021 |
+| 8 | 2,0 | 11000 | 0.7800 | 2.574 | 3.900 |
+| 9 | 2,1 | 12100 | 0.7632 | 2.519 | 3.816 |
+| 10 | 2,2 | 13700 | 0.7400 | 2.442 | 3.700 |
+| 11 | 2,3 | 14900 | 0.7236 | 2.388 | 3.618 |
+| 12 | 3,0 | 16000 | 0.7091 | 2.340 | 3.545 |
+| 13 | 3,1 | 17100 | 0.6952 | 2.294 | 3.476 |
+| 14 | 3,2 | 18700 | 0.6759 | 2.231 | 3.380 |
+| 15 | 3,3 | 19900 | 0.6621 | 2.185 | 3.311 |
+
+**Sanity check first:** keycode 0 (both jumpers on the 0 Ω legs) must read
+*exactly* the supply voltage. Anything less means a jumper is not seated.
+
+#### DMM caveats
+
+- **Check your meter's input impedance.** At 10 MΩ it loads `Rload` to 38.85 kΩ —
+  under 1 ADC-count equivalent, ignorable. At **1 MΩ** it loads to 37.5 kΩ, which
+  shifts the high keycodes by up to **~9 counts** and will make good resistors look
+  bad. Bench meters are usually 10 MΩ; cheap pocket ones are not always.
+- Nothing here is time-critical, so take your time — but do let the reading settle
+  before trusting the last digit.
+- A wrong reading on **four keys sharing a row or column** localises the faulty
+  resistor exactly as in § Diagnosing a bad reading below.
+
+### Run sheet (with an Arduino)
 
 Everything you need for one bench session, in order.
 
