@@ -125,6 +125,7 @@ template everything else forks.
 
 ```
 docs/bench-setup.md      shared tooling + consumables (programmer, caps, analyzer)
+docs/research/           chip-choice and component investigations
 docs/architecture.md     the platform: bus rules, register model, power/sleep/
                          interrupt architecture, chip choices, open decisions
 lib/                     shared libraries
