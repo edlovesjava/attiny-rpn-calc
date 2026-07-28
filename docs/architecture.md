@@ -15,6 +15,32 @@ Design north star: **each module owns its own pins and driver complexity, and
 hides all of it behind a small I2C register interface.** The host never learns
 how the LEDs are wired or how keys are scanned — it reads and writes registers.
 
+### Guiding priority
+
+> **Engineering fun and learning outrank practical product considerations.
+> Hobby first, pushing the limits of tiny.**
+
+This is a decision rule, not a mood. It resolves tradeoffs:
+
+- **The 8-pin constraint is the project, not a limitation to escape.** Every
+  distinctive result here — the base-4 ladder, wake-and-decode sharing one wire,
+  the collision analysis, one LED carrying four states — exists *because* pins
+  were scarce. On a chip with spare I/O the keypad would be an ordinary matrix
+  scan and none of it would have been written.
+- **"Tight" is not a reason to upgrade; "impossible" is.** A design that barely
+  fits is the interesting case. Reach for a bigger part only when something
+  genuinely cannot be done, not when it would merely be more comfortable.
+- **Prefer the approach that teaches more**, where the cost is ours to bear. Bit
+  -banging a shift register beats dropping in a driver IC; a '85 driving dumb RGB
+  beats an LP50xx that does it for us.
+- **Accept the honest cost.** Some later work — the program VM especially — may
+  genuinely strain 8 KB. That is a problem to solve, not a reason to have picked
+  differently.
+
+Escape hatches stay documented (`docs/research/chip-strategy.md`) so the choice
+remains reversible. The bar for taking one is simply higher than "it would be
+easier".
+
 ## 2. System architecture
 
 ```mermaid

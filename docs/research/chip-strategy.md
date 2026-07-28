@@ -3,14 +3,17 @@
 Evaluating whether to move off the ATtiny85, and what to standardise on longer
 term.
 
-> **Verdict: a two-tier standard.** Keep 8-pin parts for slaves — that constraint
-> is the point, and the '85 is the best 8-pin AVR there is. Adopt the 14-pin
-> **ATtiny1624** (tinyAVR 2) as the "capable" tier for the host and anything that
-> genuinely outgrows 8 pins. The `core`/`platform` split means both tiers run the
-> same code.
+> **Verdict: all-'85, everywhere — including the host.**
 >
-> Near term: **stay on the '85** through breadboard and perfboard. Nothing on
-> offer unblocks current work, and the port is cheap whenever we want it.
+> Under the project's guiding priority (architecture §1 — *engineering fun and
+> learning outrank product considerations; hobby first, pushing the limits of
+> tiny*), the 8-pin constraint is the point rather than an obstacle. The '85 is
+> also, factually, the most capable 8-pin AVR available.
+>
+> The ATtiny1624 remains **documented as an escape hatch**, not a plan. The bar
+> for taking it is "this cannot be done", not "this would be more comfortable" —
+> and as of the SSD1306 correction below, nothing on the roadmap is in the first
+> category. The `core`/`platform` split keeps the option live at all times.
 
 ## The constraint that settles it: no 8-pin tinyAVR 2
 
@@ -102,20 +105,30 @@ capability**:
 
 None of those are blockers. This is a "would be more comfortable", not a "must".
 
-## Proposed standard
+## The standard: one part
 
-| Tier | Part | For |
-|---|---|---|
-| **mini** — 8-pin | **ATtiny85** (DIP for bench, SOIC for PCB) | slaves: `smartiny-key`, `smartiny-led`, `smartiny-pwr` |
-| **max** — 14-pin | **ATtiny1624** (tinyAVR 2) | `smartiny-calc`, and any module that truly outgrows 8 pins |
+**ATtiny85 everywhere** — DIP-8 on the bench, SOIC-8 on a PCB. Slaves and host
+alike. One part, one toolchain, one footprint, and the eight-pin constraint
+applied uniformly.
 
-Two footprints, **one codebase**: `smartiny_regs.h`, the slave engine and every
-`*_core.c` are hardware-free and unchanged across both. Only the per-module
-platform glue differs — which is exactly what §4 was for.
+An earlier draft of this note proposed a two-tier standard ('85 slaves, 1624
+host). The guiding priority in architecture §1 dissolves it: the host's case was
+*headroom*, and headroom is not a reason to leave the constraint. Fewer moving
+parts, and it keeps the ecosystem honest — a system of '85s, not a system of '85s
+supervised by something larger.
 
-Accept the cost honestly: two toolchains on the bench (ATTinyCore + ISP for the
-'85s, megaTinyCore + UPDI for the 1624). That is one extra USB-serial adapter and
-a second page in `bench-setup.md`.
+**When the escape hatch would be justified**, so the bar is explicit:
+
+| Situation | Verdict |
+|---|---|
+| A module is tight on flash or SRAM | **stay** — that is the interesting part |
+| Ladder margins measure poorly | **stay** — EEPROM self-calibration first |
+| Want graphics on the OLED | **stay** — `u8g2` page mode fits in 128 B |
+| Program VM genuinely will not fit 8 KB | reconsider — after trying to shrink it |
+| Want USB with the calculator live | reconsider — needs a USART, or accept dock mode |
+
+Note only the last two are real, and both have a workaround worth attempting
+first.
 
 ## Notes on the ATtiny412 specifically
 
@@ -253,13 +266,10 @@ keeps the aesthetic's cost from biting.
 
 ## Recommendation
 
-1. **Keep the '85 through breadboard and perfboard.** DIP-8 suits this phase, the
-   design is complete, and nothing on offer unblocks it.
-2. **Adopt the two-tier standard** above as the long-term shape: 8-pin slaves,
-   ATtiny1624 host.
-3. **Keep the keypad on 8 pins permanently** — the constraint is the design.
-4. **Keep `core/` hardware-free.** It is what makes every one of these decisions
-   reversible.
+1. **ATtiny85 everywhere**, host included. The constraint is the project.
+2. **Treat the 1624 as a documented escape hatch**, taken only for "cannot", never
+   for "would be easier".
+3. **Keep `core/` hardware-free.** It is what makes that promise cheap to keep.
 
 ## Sources
 
