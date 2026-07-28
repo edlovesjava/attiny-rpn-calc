@@ -21,8 +21,12 @@ This is the one seat where a bare ATtiny85 is genuinely contested:
 
 - **ATtiny85 (purist).** USI can master I²C fine, and an RPN display is
   event-driven — it updates when the stack changes, not continuously — so
-  bandwidth is a non-issue. Sole caveat: 512 B RAM cannot hold an SSD1306
-  framebuffer (1 KB), so it is limited to paged/partial updates.
+  bandwidth is a non-issue. **The framebuffer is not the obstacle it looks like:**
+  a full buffer is 1 KB, but `u8g2` page mode needs only 128 B and `u8x8` needs
+  essentially none — and a calculator display is *text*, so `u8x8`'s 16×8
+  characters are the natural fit rather than a compromise. Flash is the likelier
+  ceiling: 8 KB must hold USI master, the display driver, the RPN engine and
+  eventually a program VM.
 - **tinyAVR-1 / megaAVR-0.** Hardware TWI, RAM for a framebuffer, a real USART
   (which is what lets USB-over-UART work while the calculator keeps running), a
   spare pin for the shared `INT` line, and UPDI programming that costs no I/O.

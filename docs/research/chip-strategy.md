@@ -66,14 +66,41 @@ replacing it — you keep the passive matrix, the pinout, and the decode.)*
 
 ## Where more pins genuinely earn their place
 
-**`smartiny-calc`, the host.** Its needs are different in kind, not degree:
+**`smartiny-calc`, the host** — but the case is weaker than it first looks.
 
-- an SSD1306 framebuffer is 1 KB — the '85 has 512 B total, so it *cannot* hold one
-- the USB path wants a real USART (§11 decision 9), which the '85 lacks
-- it masters the bus, formats the display, and runs the RPN stack
+> **Correction: a '85 *can* drive an SSD1306.** An earlier version of this note
+> said it could not, on the grounds that a full framebuffer is 1 KB against 512 B
+> of SRAM. That rules out *full-buffer* graphics only. It does not rule out the
+> display.
 
-2 KB SRAM, 16 KB flash and 11 I/O answer all three. This is the seat where the
-8-pin constraint stops being interesting and starts being an obstacle.
+| Mode | RAM | Capability |
+|---|---|---|
+| Full buffer (`_F_`, Adafruit_SSD1306) | **1024 B** | impossible on a '85 |
+| u8g2 page buffer `_1_` | **128 B** | full graphics, rendered in 8 passes |
+| u8g2 `_2_` | 256 B | same, fewer passes |
+| **u8x8 — no buffer** | **~tens of B** | 8×8 text tiles written straight to the panel |
+
+And for *this* application the light option is not a concession:
+
+> **A calculator display is text.** You are showing a number and a few stack
+> lines. `u8x8` gives 16×8 characters on a 128×64 panel with essentially no RAM,
+> and graphics buy nothing. Page mode is there if you later want a fancier layout.
+
+Flash is the likelier binding constraint anyway — u8g2 is famously large, and the
+'85 has 8 KB to hold USI master, `u8x8`, the RPN engine and eventually a program
+VM.
+
+So the honest remaining arguments for a 1624 in this seat are **headroom, not
+capability**:
+
+- a **real USART**, which is what makes the clean USB path possible (§11 decision
+  9 Option B — calculator stays live while connected). On a '85 the USB story is
+  restricted to the dock/hand-off variant.
+- **flash and SRAM headroom** for the programmable-RPN work, where a program VM
+  plus display plus bus master starts to crowd 8 KB
+- hardware TWI as **master**, and sampled BOD
+
+None of those are blockers. This is a "would be more comfortable", not a "must".
 
 ## Proposed standard
 

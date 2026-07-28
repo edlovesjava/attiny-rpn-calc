@@ -529,10 +529,13 @@ direct-drive LEDs is trivial. Save charlieplex / APA102 cleverness for a
    (`0x0C`) vs STATUS-poll for source identification.
 4. Idle/wake policy: sleep timeout, wake sources (SENSE PCINT + USI start), and
    the LED idle-glow brightness budget.
-5. Motherboard chip: bare ATTiny85 (purist, currently leaning this way) vs
-   tinyAVR-1 (headroom). Note the 412 is the *wrong* tinyAVR for this seat — it
-   has less memory than a '85; a 1614/1616 is the candidate. See
-   `docs/research/chip-strategy.md`.
+5. Motherboard chip: bare ATTiny85 (purist, currently leaning this way) vs a
+   14-pin tinyAVR-2 (**ATtiny1624**) for headroom. The 412 is the *wrong* part
+   here — it has less memory than a '85. Note the '85 **can** drive an SSD1306
+   via `u8x8` (no buffer) or `u8g2` page mode (128 B); the full 1 KB framebuffer
+   is what it cannot hold, which is not the same thing. The real 1624 arguments
+   are a USART for the live-while-connected USB path, and flash headroom for the
+   program VM. See `docs/research/chip-strategy.md`.
 6. LED module v1 drive: 3–4 direct-drive GPIO LEDs (recommended first); APA102
    RGB deferred to v2.
 7. Modifier status semantics: one-at-a-time modes vs stackable flags (drives the
