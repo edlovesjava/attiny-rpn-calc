@@ -532,7 +532,7 @@ direct-drive LEDs is trivial. Save charlieplex / APA102 cleverness for a
 5. Motherboard chip: bare ATTiny85 (purist, currently leaning this way) vs
    tinyAVR-1 (headroom). Note the 412 is the *wrong* tinyAVR for this seat — it
    has less memory than a '85; a 1614/1616 is the candidate. See
-   `docs/research/attiny412-vs-attiny85.md`.
+   `docs/research/chip-strategy.md`.
 6. LED module v1 drive: 3–4 direct-drive GPIO LEDs (recommended first); APA102
    RGB deferred to v2.
 7. Modifier status semantics: one-at-a-time modes vs stackable flags (drives the
