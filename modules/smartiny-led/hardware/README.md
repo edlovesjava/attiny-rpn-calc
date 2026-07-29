@@ -231,6 +231,6 @@ which are the same pins as SDA, LED0 and SCL. Consequences:
 | 1 | 100 nF ceramic | decoupling, close to VCC |
 | 1 | 10 µF | local bulk |
 | 2 | JST-SH 4-pin (Qwiic) | bus pass-through |
-| 1 | 6-pin ISP header | optional but recommended |
+| 1 | `SMARTINY-6` header, 1×6 0.1″ | programming **and** bench bus — architecture §3 |
 
 Not on this board: bus pull-ups (master), power regulation (`smartiny-pwr`).

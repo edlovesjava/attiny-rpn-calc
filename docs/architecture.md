@@ -95,6 +95,44 @@ Adopt **Qwiic / STEMMA QT** (4-pin JST-SH: SDA/SCL/VCC/GND). Each module carries
 two connectors to pass the bus through, giving plug-and-chain assembly and
 compatibility with the wider Qwiic ecosystem.
 
+### Programming header standard — `SMARTINY-6`
+
+Every module carries a **1×6, 0.1″ single-row** header. The ordering is the
+interesting part:
+
+| Pin | Signal | Also is |
+|---|---|---|
+| 1 | **GND** | Qwiic pin 1 |
+| 2 | **VCC** | Qwiic pin 2 |
+| 3 | **SDA** | Qwiic pin 3 · **ISP MOSI** (PB0) |
+| 4 | **SCL** | Qwiic pin 4 · **ISP SCK** (PB2) |
+| 5 | `RESET` | ISP (PB5) |
+| 6 | `MISO` | ISP (PB1) |
+
+**On an ATtiny85 the ISP signals and the I²C signals are the same pins** — MOSI
+*is* SDA, SCK *is* SCL. So one connector serves both roles rather than two
+connectors carrying overlapping wires:
+
+- **Pins 1–4 are Qwiic order exactly.** A 4-pin cable on the first four pins is a
+  bus connection; the module needs no separate debug port.
+- **All six** gives in-place programming: `RESET` and `MISO` are the only signals
+  ISP adds.
+- Pin 6 (`MISO`/PB1) doubles as the status-LED pin on most modules, so a probe
+  there watches local activity for free.
+
+Why single-row rather than the standard 2×3 AVR footprint: it routes along one
+board edge, keeps the keep-out small on a module that may be 25 mm square, and
+takes pogo pins without a connector fitted at all. The **programmer** carries a
+conventional 2×3 as well, so stock USBasp-style tools still work — universality
+belongs on the tool, not on twenty modules.
+
+> ⚠️ **Programming still requires bus isolation.** Because pins 3–4 are the live
+> bus, an ISP session drives SDA/SCL as MOSI/SCK and holds `RESET` low —
+> gibberish to every other device. Program a module **off** the bus, or from a
+> dock that holds it alone. The shared footprint saves a connector; it does not
+> make ISP bus-safe. (This is precisely the collision that UPDI would remove —
+> see `docs/research/chip-strategy.md`.)
+
 ## 4. Firmware architecture (shared)
 
 Layer every module so the interesting logic is MCU-independent and testable on a

@@ -28,7 +28,7 @@ spans modules: the tools and the consumables you burn through.
 | 6 mm SPST-NO tactile switches | 50 | 16 per keypad; they cost pennies and they ping away |
 | Red / amber LEDs | 20 | **required at 3.3 V** — blue/white/green (Vf ≈ 3.0–3.4 V) barely light |
 | Perfboard | few | keypad matrix, then module prototypes |
-| 0.1" breakaway male header | strip | keypad's 8-pin connector, ISP headers |
+| 0.1" breakaway male header | strip | keypad's 8-pin connector, `SMARTINY-6` headers |
 | Bare tinned + insulated hookup wire | — | perfboard matrix: one axis bare, one insulated |
 | 1 % resistors | have | ladder: 5.6k, 11k, 16k, 1.1k, 2.7k, 3.9k, 39k · pull-ups: 4.7k |
 
@@ -54,13 +54,66 @@ An 8-channel 24 MHz FX2LA-style analyzer is plenty: 24 MHz against 100 kHz I²C 
 
 ## Bench builds — todo
 
-### 1. ATtiny85 programming jig (Nano as ISP) ⬜
+### 1. The smartiny dock — programmer *and* bus master ⬜
 
-Worth soldering to perfboard rather than re-breadboarding each time: because ISP
-shares pins with the I²C bus, chips come out of circuit to be reflashed
-constantly, so this jig gets used all day.
+The upgrade worth building rather than a plain programmer. A stock USBasp only
+flashes; the tedious part of the loop is **flash → talk to it over I²C → repeat**,
+which normally means moving wires every cycle.
 
-Flash the Nano with the stock **ArduinoISP** example, then:
+Because `SMARTINY-6` puts ISP and I²C on the same pins (architecture §3), one dock
+can do both — if it can switch roles:
+
+1. **Program mode** — drive `RESET`/`MOSI`/`MISO`/`SCK`, flash the target.
+2. **Release** — tri-state the SPI lines.
+3. **Bus mode** — become an I²C master on the *same* two wires and exercise the
+   module's registers.
+
+**A single Arduino Nano does all of it.** It has SPI (for `ArduinoISP`) and TWI
+(for `Wire`), and `SPI.end()` releases the SPI pins so `Wire` can take the same
+target lines:
+
+| Nano | → | `SMARTINY-6` | Target ('85) |
+|---|---|---|---|
+| D11 MOSI **+** A4 SDA | → | pin 3 | PB0 |
+| D13 SCK **+** A5 SCL | → | pin 4 | PB2 |
+| D12 MISO | → | pin 6 | PB1 |
+| D10 | → | pin 5 | RESET |
+| 5V / 3V3 | → | pin 2 | VCC |
+| GND | → | pin 1 | GND |
+
+> **Put ~330 Ω in series on D11 and D13.** Two Nano pins share each target line
+> and only one role is active at a time; the resistors make any moment of overlap
+> harmless instead of a short. Cheap insurance for a mode switch that will
+> occasionally be got wrong.
+
+**Also build in**
+
+- **ZIF socket** for bare DIP-8 chips, **plus** a `SMARTINY-6` cable for assembled
+  modules — the two ways a chip arrives.
+- **VCC select, 3.3 V / 5 V.** Our target rail is 3.3 V but ISP is habitually 5 V;
+  making it a switch stops the "one voltage across the whole bench" rule from
+  being violated by accident.
+- **Status LEDs** on D9/D8/D7 — `ArduinoISP` already drives heartbeat, error and
+  programming.
+- A conventional **2×3 AVR ISP** connector too, so a stock USBasp can drive the
+  same target.
+
+Flash the Nano with the stock **ArduinoISP** example to start; the mode-switching
+firmware is a later refinement.
+
+> ⚠️ **10 µF between the Nano's own RESET and GND** (+ to RESET). Without it the
+> Nano auto-resets when `avrdude` opens the serial port and programming fails with
+> a sync error. This is *the* Arduino-as-ISP gotcha.
+>
+> The cap must be **absent** while uploading a sketch *to* the Nano and **present**
+> while programming a target — so put it on a jumper or slide switch. Designing
+> that in is most of the jig's value.
+
+### 1a. Minimal fallback — plain Nano-as-ISP ⬜
+
+If the dock is more than you want today, the classic wiring still works and is
+worth soldering to perfboard rather than re-breadboarding each time — because ISP
+shares pins with the I²C bus, chips come out of circuit constantly.
 
 | Nano | → | ATtiny85 (DIP-8) | |
 |---|---|---|---|
@@ -71,13 +124,7 @@ Flash the Nano with the stock **ArduinoISP** example, then:
 | 5V | → | pin 8 | VCC |
 | GND | → | pin 4 | GND |
 
-> ⚠️ **10 µF between the Nano's own RESET and GND** (+ to RESET). Without it the
-> Nano auto-resets when `avrdude` opens the serial port and programming fails
-> with a sync error. This is *the* Arduino-as-ISP gotcha.
->
-> The cap must be **absent** while uploading the ArduinoISP sketch *to* the Nano,
-> and **present** while programming a target — so put it on a jumper or a slide
-> switch. Designing that in is most of the jig's value.
+Same 10 µF RESET-capacitor caveat as above.
 
 **Worth building in**
 
