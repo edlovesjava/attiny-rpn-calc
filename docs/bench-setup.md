@@ -86,17 +86,51 @@ target lines:
 > harmless instead of a short. Cheap insurance for a mode switch that will
 > occasionally be got wrong.
 
+#### Two ports, deliberately
+
+The dock needs a **Qwiic connector as well as** `SMARTINY-6` — and keeping them
+separate is the point, because the two roles want opposite things:
+
+| Port | Role | Requires |
+|---|---|---|
+| `SMARTINY-6` (1×6) | program **one** module | **isolation** — drives RESET, owns SDA/SCL |
+| **Qwiic** (JST-SH 4) | act as master on a **live** bus | the opposite — coexist with other devices |
+
+Different physical connectors make the isolation rule **impossible to violate by
+accident**: the cable in your hand tells you which mode you are in, instead of
+having to remember whether the bus was unplugged. Treat them as **mutually
+exclusive — never both at once**, or the dock drives SDA/SCL from two places.
+
+Note Qwiic *cannot* replace `SMARTINY-6`: it has no RESET line, so it can carry
+the bus but never an ISP session.
+
+> **The Qwiic port must be 3.3 V only.** The dock's 3.3/5 V switch feeds
+> `SMARTINY-6` — it must **not** reach the Qwiic connector. A Qwiic socket is a
+> promise of 3.3 V, and an off-the-shelf sensor plugged into a 5 V one is
+> destroyed. Keep 5 V on the bench-only port where it is asked for deliberately.
+
+> **Pull-ups on a jumper.** The dock is a master, so it carries the bus pull-ups
+> (4.7 kΩ) — but the rule is *exactly one set* (§3 rule 2). Fit them on a shunt so
+> they come out when joining a bus that already has a master.
+
 **Also build in**
 
 - **ZIF socket** for bare DIP-8 chips, **plus** a `SMARTINY-6` cable for assembled
   modules — the two ways a chip arrives.
-- **VCC select, 3.3 V / 5 V.** Our target rail is 3.3 V but ISP is habitually 5 V;
-  making it a switch stops the "one voltage across the whole bench" rule from
-  being violated by accident.
+- **VCC select, 3.3 V / 5 V** on `SMARTINY-6` only (see above). Our target rail is
+  3.3 V but ISP is habitually 5 V; a switch stops "one voltage across the whole
+  bench" being violated by accident.
+- **An `INT` pin** broken out beside the Qwiic connector — Qwiic is strictly 4-pin,
+  and the shared attention line (§9.6) is what deep-sleep wake testing needs.
 - **Status LEDs** on D9/D8/D7 — `ArduinoISP` already drives heartbeat, error and
   programming.
 - A conventional **2×3 AVR ISP** connector too, so a stock USBasp can drive the
   same target.
+
+> Forward note: **UPDI would collapse this to one port.** It needs a single data
+> line plus power, so a 4-pin connector could carry both programming and bus —
+> `SMARTINY-6` exists because ISP needs RESET and MISO. One more quiet point in
+> the ATtiny1624's favour, should the escape hatch ever be taken.
 
 Flash the Nano with the stock **ArduinoISP** example to start; the mode-switching
 firmware is a later refinement.
