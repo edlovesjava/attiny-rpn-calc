@@ -3,6 +3,38 @@
 Updated resistor set for decoding the passive 4×4 matrix on **one ADC pin** (PB3).
 This v2 keeps the same architecture as `ladder.md`, with recalculated values.
 
+> ## ⚠️ Measured against v1 — and a third set that beats both
+>
+> The values below use **common, round resistors**, which is a good goal: an E12
+> parts drawer holds 1k/2k/3.3k/5.6k/10k/22k/47k, while v1 needs E24 parts
+> (1.1k, 11k, 16k). But the set as chosen costs resolution:
+>
+> | set | min adjacent gap | k15 wake frac | values |
+> |---|---|---|---|
+> | v1 (`ladder.md`) | **14** | 0.662 (+12 counts) | needs E24 |
+> | **v2 (below)** | **10** | 0.650 (+1 count) | mostly E12 |
+> | **E12-optimal** | **15** | **0.674 (+24 counts)** | **all E12** |
+>
+> **Why v2 loses range:** its row steps are uneven — 5.6 k, 4.4 k, **12 k**
+> (v1: 5.6 k, 5.4 k, 5.0 k). That opens a **100-count gap between keys 11 and 12**
+> while keys 12–13 and 13–14 are squeezed to 10. The base-4 scheme wants roughly
+> equal row steps; the wasted span has to come out of the tightest pairs.
+>
+> Also note k15 lands at frac 0.6501 against the 0.65 PCINT wake floor — passing by
+> **one count**, where v1 has 12 and the E12-optimal set has 24.
+>
+> **The goal was right, the search just wasn't run.** Constraining the optimizer to
+> E12 finds a set that is all-common-values *and* better than v1 on every axis:
+>
+> ```console
+> $ python3 ../tools/ladder_optimizer.py --series e12
+> Rr = [0, 4.7k, 10k, 15k]   Rc = [0, 1.2k, 2.7k, 3.9k]   Rload = 39k
+> min gap 15 · worst margin 6 · wake margin +24 counts · every value E12
+> ```
+>
+> Recommend adopting that set rather than either v1 or v2 — it satisfies v2's
+> motivation without v2's cost. Values below are kept for the record.
+
 ## v2 resistor set
 
 | Resistor | Value |

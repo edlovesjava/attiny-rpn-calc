@@ -53,19 +53,27 @@ SCENARIOS = [
 ]
 
 E24 = [1.0,1.1,1.2,1.3,1.5,1.6,1.8,2.0,2.2,2.4,2.7,3.0,3.3,3.6,3.9,4.3,4.7,5.1,5.6,6.2,6.8,7.5,8.2,9.1]
+E12 = [1.0,1.2,1.5,1.8,2.2,2.7,3.3,3.9,4.7,5.6,6.8,8.2]
 
-def e24(lo, hi):
+# Which preferred-value series to draw from. E12 is what a hobby parts drawer
+# actually holds; restricting to it costs nothing here — see SERIES_NOTE below.
+SERIES = {"e12": E12, "e24": E24}
+
+def decade(series, lo, hi):
     vals = []
     for dec in (1e2, 1e3, 1e4):
-        for b in E24:
+        for b in series:
             v = b * dec
             if lo <= v <= hi:
                 vals.append(round(v, 1))
     return sorted(set(vals))
 
-COL_POOL   = [v for v in e24(1_000, 4_700)]        # column resistors (the fine digit)
-ROW_POOL   = [v for v in e24(4_700, 47_000)]       # row resistors (the coarse digit, x4-ish)
-RLOAD_POOL = [v for v in e24(10_000, 100_000)]     # load / pull-down
+def make_pools(series):
+    return (decade(series, 1_000, 4_700),      # column resistors (the fine digit)
+            decade(series, 4_700, 47_000),     # row resistors (the coarse digit)
+            decade(series, 10_000, 100_000))   # load / pull-down
+
+COL_POOL, ROW_POOL, RLOAD_POOL = make_pools(E24)
 
 # ---- model -------------------------------------------------------------------
 def fracs(rr, rc, rload):
@@ -93,6 +101,7 @@ def evaluate(rr, rc, rload, wake_frac_min):
 
 # ---- search ------------------------------------------------------------------
 def search(wake_frac_min):
+    global COL_POOL, ROW_POOL, RLOAD_POOL
     rng = random.Random(SEED)
     best = None
     for _ in range(TRIALS):
@@ -152,7 +161,18 @@ def report(name, wake_frac_min, best):
 
 
 def main():
-    print("Keypad base-4 ladder optimizer  (10-bit ADC, ratiometric -> same for 3.3V or 5V)")
+    global COL_POOL, ROW_POOL, RLOAD_POOL
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__,
+            formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--series", choices=sorted(SERIES), default="e12",
+                    help="preferred-value series to draw from (default: e12 — "
+                         "what a hobby parts drawer actually holds)")
+    args = ap.parse_args()
+    COL_POOL, ROW_POOL, RLOAD_POOL = make_pools(SERIES[args.series])
+
+    print(f"Keypad base-4 ladder optimizer  [{args.series.upper()} values]"
+          "  (10-bit ADC, ratiometric -> same for 3.3V or 5V)")
     results = []
     for name, wf in SCENARIOS:
         best = search(wf)
