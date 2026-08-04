@@ -124,6 +124,7 @@ template everything else forks.
 ## Repo layout
 
 ```
+docs/assembly.md         physical topology: bench cabling vs the stacked build
 docs/bench-setup.md      shared tooling + consumables (programmer, caps, analyzer)
 docs/research/           chip-choice and component investigations
 docs/architecture.md     the platform: bus rules, register model, power/sleep/

@@ -95,6 +95,10 @@ Adopt **Qwiic / STEMMA QT** (4-pin JST-SH: SDA/SCL/VCC/GND). Each module carries
 two connectors to pass the bus through, giving plug-and-chain assembly and
 compatibility with the wider Qwiic ecosystem.
 
+Physically the bus takes two forms — Qwiic cables on the bench, a 1×5 stacking
+spine in the assembled product (the spine adds `INT`, which Qwiic's 4 pins cannot
+carry). Both are the same multi-drop bus. See [`assembly.md`](assembly.md).
+
 ### Programming header standard — `SMARTINY-6`
 
 Every module carries a **1×6, 0.1″ single-row** header. The ordering is the
