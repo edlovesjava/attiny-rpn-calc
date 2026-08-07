@@ -21,8 +21,8 @@ graph LR
     MB[RPN Motherboard<br/>I²C MASTER]
     MB --- OLED[OLED Display<br/>SSD1306 · 0x3C]
     MB --- KP[Keypad Module<br/>ATTiny85 slave · 0x20]
-    MB --- LED[LED Module<br/>slave · 0x21]
-    MB --- PWR[Power Module<br/>slave · 0x22]
+    MB --- LED[LED Module<br/>slave · 0x24]
+    MB --- PWR[Power Module<br/>slave · 0x28]
 ```
 
 One shared 4-wire bus (`SDA`/`SCL`/`VCC`/`GND`) over **Qwiic / STEMMA QT**
@@ -41,8 +41,8 @@ yours.
 |---|---|---|---|
 | RPN Motherboard | I²C master, RPN logic, display formatting | ATTiny85 (or tinyAVR-1) | — |
 | Keypad Module | 16 keys → events, sticky modifiers, status LEDs | ATTiny85 slave | `0x20` |
-| LED Module | Expressive light output | LED driver IC *or* ATTiny85 slave | `0x21` |
-| Power Module | LiPo telemetry, charge state, rail control | ATTiny85 slave (optional) | `0x22` |
+| LED Module | Expressive light output | LED driver IC *or* ATTiny85 slave | `0x24` |
+| Power Module | LiPo telemetry, charge state, rail control | ATTiny85 slave (optional) | `0x28` |
 | OLED Display | Numeric / stack display | SSD1306 (off-the-shelf) | `0x3C` |
 
 Every module implements the same **common header** (`WHO_AM_I`, `VERSION`,
@@ -135,8 +135,8 @@ lib/                     shared libraries
   smartiny-hal/          per-chip HAL (attiny85 / tinyavr / host-for-tests)
 modules/                 the smartiny board family — see modules/README.md
   smartiny-key/          16-key keypad → events        0x20   in progress
-  smartiny-led/          indicator / light output      0x21   next (Board 0)
-  smartiny-pwr/          LiPo telemetry, charge state  0x22   planned
+  smartiny-led/          indicator / light output      0x24   next (Board 0)
+  smartiny-pwr/          LiPo telemetry, charge state  0x28   planned
   smartiny-mem/          NV store for user programs    0x50   planned
   smartiny-calc/         RPN brain — bus master        —      planned
 tools/                   cross-cutting dev tools

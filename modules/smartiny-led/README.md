@@ -1,6 +1,6 @@
 # smartiny-led
 
-Indicator / light output. **Addr `0x21` · `WHO_AM_I` `0x02` · ATtiny85 slave**
+Indicator / light output. **Addr `0x24` · `WHO_AM_I` `0x02` · ATtiny85 slave**
 
 **This is Board 0 — the reference slave.** It is built first not because the
 product needs it first (the OLED can show status), but because it is the
@@ -64,10 +64,10 @@ indicator. One shared rate and duty covers "these two blink, that one is solid";
 per-LED rates and canned patterns are v2, if ever.
 
 ```console
-$ i2cset -y 3 0x21 0x11 0x07   # all three on
-$ i2cset -y 3 0x21 0x13 0x02   # LED1 blinks, LED0 and LED2 stay steady
-$ i2cset -y 3 0x21 0x14 25     # 250 ms period
-$ i2cset -y 3 0x21 0x12 0x30   # dim them all
+$ i2cset -y 3 0x24 0x11 0x07   # all three on
+$ i2cset -y 3 0x24 0x13 0x02   # LED1 blinks, LED0 and LED2 stay steady
+$ i2cset -y 3 0x24 0x14 25     # 250 ms period
+$ i2cset -y 3 0x24 0x12 0x30   # dim them all
 ```
 
 Definitions: [`lib/smartiny-common/smartiny_regs.h`](../../lib/smartiny-common/smartiny_regs.h).

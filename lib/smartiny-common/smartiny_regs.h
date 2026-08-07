@@ -42,11 +42,26 @@
     ((id) != SMARTINY_ID_INVALID_LOW && (id) != SMARTINY_ID_INVALID_HIGH)
 
 /* ---- default 7-bit bus addresses ----------------------------------------- */
-#define SMARTINY_ADDR_KEY   0x20
-#define SMARTINY_ADDR_LED   0x21
-#define SMARTINY_ADDR_PWR   0x22
-#define SMARTINY_ADDR_OLED  0x3C  /* off-the-shelf SSD1306                    */
+/* Each module type owns a block of four consecutive addresses, so a second (or
+ * fourth) instance of any module is just a different address in its own block —
+ * two keypads for 32 keys, two LED boards, and so on. Instance 0 is the
+ * as-shipped default; move a module with the I2C_ADDR register.
+ *
+ * Blocks rather than one address each because retrofitting room after boards are
+ * silkscreened is miserable, and it costs nothing to reserve now. */
+#define SMARTINY_ADDR_KEY   0x20  /* keypads      0x20-0x23                   */
+#define SMARTINY_ADDR_LED   0x24  /* LED modules  0x24-0x27                   */
+#define SMARTINY_ADDR_PWR   0x28  /* power        0x28-0x2B                   */
+#define SMARTINY_ADDR_OLED  0x3C  /* off-the-shelf SSD1306, fixed             */
 #define SMARTINY_ADDR_FRAM  0x50  /* raw FRAM/EEPROM — no common header       */
+
+#define SMARTINY_ADDR_INSTANCES  4
+#define SMARTINY_ADDR_NTH(base, n) \
+    ((uint8_t)((base) + ((n) % SMARTINY_ADDR_INSTANCES)))
+
+/* ⚠️ Two identical modules ship at the SAME address and will both answer it.
+ * Set the second one's address while it is ALONE (on the dock, or off the bus)
+ * before joining them — you cannot address one of a colliding pair to move it. */
 
 /* ---- STATUS bits (common) ------------------------------------------------ */
 #define SMARTINY_STATUS_EVENTS    (1u << 0)  /* module has queued events       */

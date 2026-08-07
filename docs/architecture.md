@@ -48,7 +48,7 @@ graph LR
     MB[RPN Motherboard<br/>I2C MASTER]
     MB --- OLED[OLED Display<br/>SSD1306 · 0x3C]
     MB --- KP[Keypad Module<br/>ATTiny85 slave · 0x20]
-    MB --- LED[LED Module<br/>slave · 0x21]
+    MB --- LED[LED Module<br/>slave · 0x24]
 ```
 
 All devices share **one** 4-wire bus: `SDA`, `SCL`, `VCC`, `GND`. This is a
@@ -63,7 +63,7 @@ even though electrically it is a shared bus.)
 |---|---|---|---|
 | RPN Motherboard | I2C **master**, RPN logic, display formatting | ATTiny85 (or tinyAVR-1) | — (master) |
 | Keypad Module | 16 keys → events, sticky modifiers, local status LEDs | ATTiny85 slave | `0x20` |
-| LED Module | Expressive light output | I2C LED-driver IC **or** ATTiny85 slave | `0x21` |
+| LED Module | Expressive light output | I2C LED-driver IC **or** ATTiny85 slave | `0x24` |
 | OLED Display | Numeric / stack display | SSD1306 (off-the-shelf) | `0x3C` (fixed) |
 
 ## 3. Bus design & rules
@@ -73,7 +73,13 @@ These are the practical rules that keep a multi-module bus reliable.
 1. **Addresses must not collide.** The OLED is fixed at `0x3C`/`0x3D`; keep your
    own modules clear of it. Because ATTiny85 modules have no strap pins, each
    module stores its address in **EEPROM**, settable via the `I2C_ADDR` register
-   (§5). This lets two identical keypads coexist on one bus.
+   (§5). Each module type owns a **block of four** — keypads `0x20`–`0x23`, LED
+   `0x24`–`0x27`, power `0x28`–`0x2B` — so a second instance of anything (two
+   keypads for 32 keys) is just a different address in its own block.
+   > ⚠️ **Two identical modules ship at the same address**, and you cannot
+   > re-address one of a colliding pair — the write reaches both. Set the second
+   > board's address **while it is alone** (on the dock, or off the bus) before
+   > joining them.
 2. **Pull-ups: exactly ONE set, on the master/motherboard.** Do **not** populate
    SDA/SCL pull-ups on every module — parallel pull-ups drag the bus low and it
    stops working. Master carries them (e.g. 4.7 kΩ at 100 kHz); slaves do not.
@@ -345,7 +351,7 @@ refresh loop competing with I2C/keypad scan) and give per-LED RGB + brightness.
 ## 9. Power & power management
 
 Power is modularized like every other capability: a dedicated **Power Module**
-(default addr `0x22`) feeds the bus, with pluggable input sources. Design it
+(default addr `0x28`) feeds the bus, with pluggable input sources. Design it
 around one dominating decision.
 
 ### 9.1 The dominating decision — system bus voltage
@@ -591,7 +597,7 @@ direct-drive LEDs is trivial. Save charlieplex / APA102 cleverness for a
 
 1. ✅ **DECIDED — 3.3 V target** (Qwiic/STEMMA QT-native + single LiPo). 5 V is an
    optional bench-PoC rail; boards designed voltage-agnostic to migrate.
-2. Power module: dumb (regulation + mux) vs smart '85 telemetry slave (`0x22`).
+2. Power module: dumb (regulation + mux) vs smart '85 telemetry slave (`0x28`).
 3. `INT` attention line: add the single shared open-drain wire (instant
    deep-sleep wake + data-ready) vs stay strict Qwiic-4 and poll — and SMBus ARA
    (`0x0C`) vs STATUS-poll for source identification.

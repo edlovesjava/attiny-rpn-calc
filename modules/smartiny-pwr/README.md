@@ -1,6 +1,6 @@
 # smartiny-pwr
 
-Power input, regulation and telemetry. **Addr `0x22` · `WHO_AM_I` `0x03`**
+Power input, regulation and telemetry. **Addr `0x28` · `WHO_AM_I` `0x03`**
 
 Feeds the bus from pluggable sources (LiPo / barrel / USB) and — in its smart
 form — reports what the battery is doing so the host can draw a low-battery icon

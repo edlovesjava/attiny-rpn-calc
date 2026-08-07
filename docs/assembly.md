@@ -40,7 +40,7 @@ What you will actually build first. Nothing is enclosed; everything is reachable
        ▼
    ┌────────┐   ┌────────┐   ┌────────┐   ┌────────┐
    │ key    │───│ led    │───│ OLED   │───│ pwr    │   ← bus mode: chained
-   │ 0x20   │   │ 0x21   │   │ 0x3C   │   │ 0x22   │
+   │ 0x20   │   │ 0x24   │   │ 0x3C   │   │ 0x28   │
    └────────┘   └────────┘   └────────┘   └────────┘
         └───────── INT: flying lead back to the dock ─────────┘
 ```
@@ -68,7 +68,7 @@ stack order.
               ┌───────────┴───────────┐
               │   smartiny-calc       │   master   brain, behind the panel
               ├───────────────────────┤
-              │   smartiny-pwr        │   0x22     LiPo + charge + rails
+              │   smartiny-pwr        │   0x28     LiPo + charge + rails
               └───────────────────────┘
                     ▲            ▲
                  USB port    LiPo cell

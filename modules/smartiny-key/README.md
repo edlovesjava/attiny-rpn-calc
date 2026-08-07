@@ -36,6 +36,41 @@ Two free pins, two jobs: **one** LED, because `INT` is what lets the master
 deep-sleep and wake on a keypress. Drop `INT` and you could have two LEDs and
 poll-only — architecture §11 decision 3.
 
+## Two keypads = 32 keys
+
+Yes — this is what the EEPROM `I2C_ADDR` register was for. Keypads occupy
+**`0x20`–`0x23`**, so up to four boards coexist; two gives 32 keys. Nothing in the
+module changes.
+
+Three things the host must handle:
+
+**1. Both ship at `0x20`.** Two identical modules answer the same address and you
+**cannot** re-address one of a colliding pair — the write reaches both. So set the
+second board's address **while it is alone**, on the dock or off the bus, *before*
+joining them. This is the sharpest practical gotcha in the whole scheme.
+
+```console
+$ ./key_monitor.py --bus 3 --addr 0x20   # second board, ALONE
+  ... write I2C_ADDR = 0x21, SAVE
+$ # now both can share the bus
+```
+
+**2. `INT` needs no changes at all.** It is open-drain wired-OR (§9.6), so any
+number of keypads share the one wire; the master wakes and reads `KEY_STATUS` to
+find who has events. **This is the payoff of choosing a shared attention line over
+a per-slot interrupt bus** — scaling to N keypads costs zero extra wires.
+
+**3. ⚠️ Modifiers do not span modules.** Each keypad tracks its own latches, so a
+`STICKY` shift on board A reports `mods=0` on board B's events. The `mod_snapshot`
+in an event is only *that module's* view.
+
+> The host must merge: read `MODIFIERS` from every keypad, OR them together, and
+> apply its own union rather than trusting a per-event snapshot across boards. The
+> alternative — a duplicate shift key on each board — wastes a key and is worse.
+
+Keycodes stay 0–15 per module, so the host's logical key is
+`(module_index, keycode)`. That is a keymap concern, not a protocol one.
+
 ## Modifiers, hold and feedback
 
 Any of the 16 keys can be a modifier (4 slots, EEPROM-stored), in `MOMENTARY`,

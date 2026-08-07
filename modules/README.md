@@ -11,8 +11,8 @@ Naming convention: **`smartiny-<role>`**.
 | Module | Role | Addr | `WHO_AM_I` | Brain | Status |
 |---|---|---|---|---|---|
 | [`smartiny-key`](smartiny-key/) | 16-key keypad → events | `0x20` | `0x01` | ATtiny85 | **in progress** — ladder locked, bench validation |
-| [`smartiny-led`](smartiny-led/) | Indicator / light output | `0x21` | `0x02` | ATtiny85 | **next** — Board 0, the reference slave |
-| [`smartiny-pwr`](smartiny-pwr/) | LiPo telemetry, charge state | `0x22` | `0x03` | ATtiny85 | planned |
+| [`smartiny-led`](smartiny-led/) | Indicator / light output | `0x24` | `0x02` | ATtiny85 | **next** — Board 0, the reference slave |
+| [`smartiny-pwr`](smartiny-pwr/) | LiPo telemetry, charge state | `0x28` | `0x03` | ATtiny85 | planned |
 | [`smartiny-mem`](smartiny-mem/) | NV store for user programs | `0x50` | `0x04`\* | FRAM (or ATtiny85) | planned |
 | [`smartiny-calc`](smartiny-calc/) | RPN brain — bus **master** | — | `0x05` | ATtiny85 / tinyAVR-1 | planned |
 

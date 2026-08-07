@@ -42,12 +42,12 @@ voltage** — 5 V dongle → power the '85 at 5 V too. Never put a 5 V bus on a
 3.3 V-powered AVR: pins are only VCC+0.5 tolerant.
 
 ```console
-$ i2cdetect -y <bus>          # expect a device at 0x21
-$ i2cget -y <bus> 0x21 0x00   # WHO_AM_I  -> 0x02
-$ i2cget -y <bus> 0x21 0x01   # VERSION   -> 0x01  (v0.1)
-$ i2cget -y <bus> 0x21 0x10   # LED_COUNT -> 0x03
-$ i2cset -y <bus> 0x21 0x11 0x05   # STATE  -> LED0 + LED2 on
-$ i2cset -y <bus> 0x21 0x12 0x20   # BRIGHTNESS -> dim
+$ i2cdetect -y <bus>          # expect a device at 0x24
+$ i2cget -y <bus> 0x24 0x00   # WHO_AM_I  -> 0x02
+$ i2cget -y <bus> 0x24 0x01   # VERSION   -> 0x01  (v0.1)
+$ i2cget -y <bus> 0x24 0x10   # LED_COUNT -> 0x03
+$ i2cset -y <bus> 0x24 0x11 0x05   # STATE  -> LED0 + LED2 on
+$ i2cset -y <bus> 0x24 0x12 0x20   # BRIGHTNESS -> dim
 ```
 
 **Proves:** USI slave works, the register model works end-to-end, and the module
@@ -63,7 +63,7 @@ is discoverable by `WHO_AM_I` exactly as bus enumeration will do it.
 ## Stage 3 — address persistence
 
 ```console
-$ i2cset -y <bus> 0x21 0x04 0x31   # move it to 0x31
+$ i2cset -y <bus> 0x24 0x04 0x31   # move it to 0x31
 $ i2cdetect -y <bus>               # now answers at 0x31
 # power-cycle
 $ i2cdetect -y <bus>               # STILL 0x31 — it came from EEPROM
