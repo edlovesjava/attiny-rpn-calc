@@ -103,5 +103,31 @@ and the transcendentals are where the flash goes, and both are replaceable.
    affordable once the program VM arrives.
 4. **CORDIC is the answer, and it is the historically correct one.** Write the
    maths and the formatter, and the '85 has room to spare.
-5. This is the strongest remaining argument for an ATtiny1624 (16 KB) — and also
-   the reason not to reach for one yet. See `docs/research/chip-strategy.md`.
+5. **✅ Decided: stay on the '85 and write the maths.** This measurement was the
+   strongest ATtiny1624 argument the project has produced — and it was heard and
+   declined, because CORDIC dissolves it. The escape hatch is reserved for
+   *cannot*; this was a *would be easier*. See
+   [`docs/research/chip-strategy.md`](../../../docs/research/chip-strategy.md)
+   and architecture §11 decision 5.
+
+## Next: `core/cordic.c`, host-tested
+
+The kernel is pure integer maths — no ADC, no I²C, no AVR — so it belongs in
+`core/` and is testable exactly the way `led_core` is: `make test` on a laptop,
+`-Wall -Wextra -Werror`, no toolchain required.
+
+That makes the accuracy question tractable rather than nerve-wracking:
+
+| Test | Oracle |
+|---|---|
+| `sin`/`cos`/`tan` across the full input range | host `double` libm, assert error < 1 ULP of the chosen format |
+| `log`/`exp`/`sqrt` likewise | same |
+| identities (`sin²+cos²=1`, `exp(log x)=x`) | self-checking, no oracle needed |
+| the formatter | round-trip: format → parse → compare |
+
+Sixteen CORDIC iterations converge to ~16 bits, so the iteration count is a
+tunable: fewer iterations, less flash and less accuracy, and the test suite
+tells you exactly what you bought. **Settle
+[§11 decision 10](../../../docs/architecture.md) (the number format) first** —
+it fixes the fixed-point scale the whole kernel is written against, and it is
+much cheaper to decide than to retrofit.

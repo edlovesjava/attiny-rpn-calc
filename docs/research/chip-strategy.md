@@ -264,12 +264,40 @@ That does break the eight-pin minimalism the project is partly *about*, so it is
 question of what the constraint is for. The 412 keeps the aesthetic; the 1614
 keeps the aesthetic's cost from biting.
 
+## The rule's first real test — and it held
+
+The compute measurement in
+[`modules/smartiny-calc/docs/compute-budget.md`](../../modules/smartiny-calc/docs/compute-budget.md)
+is the strongest 1624 argument this project has produced, and the right place to
+record what happened to it.
+
+The case was genuine, not hypothetical: libm plus `dtostrf` measures 4372 B and
+puts the whole calculator near 93 % of flash, leaving nothing for the program VM
+in roadmap item 3. On a 16 KB part the question never arises.
+
+**Declined — deliberately.** Not because the argument was weak, but because
+CORDIC answers it: 1818 B measured, 2554 B recovered, and the resulting
+"write your own transcendentals and your own formatter" is precisely what an
+HP-35 did in 1972 from ~3 KB of ROM. The escape hatch is for **cannot**, and this
+turned out to be a *would be easier* wearing a convincing disguise.
+
+Two things follow that are worth keeping straight:
+
+- **Compute is now off the 1624's list of arguments.** It was the best one. What
+  remains is the USART for the live-while-connected USB path (architecture §11
+  decision 9) — a genuine *cannot*, and therefore the one still standing.
+- **The cost was accounted, not waved away.** Hand-written maths is real work and
+  the number format is still undecided (§11 decision 10). Choosing the harder
+  path knowingly is the point; pretending it is free would not be.
+
 ## Recommendation
 
 1. **ATtiny85 everywhere**, host included. The constraint is the project.
 2. **Treat the 1624 as a documented escape hatch**, taken only for "cannot", never
-   for "would be easier".
-3. **Keep `core/` hardware-free.** It is what makes that promise cheap to keep.
+   for "would be easier". Tested once, on compute, and not taken.
+3. **Keep `core/` hardware-free.** It is what makes that promise cheap to keep —
+   and a CORDIC kernel is pure integer maths, so it is host-testable to the last
+   ULP with no AVR in the room.
 
 ## Sources
 

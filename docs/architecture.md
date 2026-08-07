@@ -603,13 +603,31 @@ direct-drive LEDs is trivial. Save charlieplex / APA102 cleverness for a
    (`0x0C`) vs STATUS-poll for source identification.
 4. Idle/wake policy: sleep timeout, wake sources (SENSE PCINT + USI start), and
    the LED idle-glow brightness budget.
-5. Motherboard chip: bare ATTiny85 (purist, currently leaning this way) vs a
-   14-pin tinyAVR-2 (**ATtiny1624**) for headroom. The 412 is the *wrong* part
-   here — it has less memory than a '85. Note the '85 **can** drive an SSD1306
-   via `u8x8` (no buffer) or `u8g2` page mode (128 B); the full 1 KB framebuffer
-   is what it cannot hold, which is not the same thing. The real 1624 arguments
-   are a USART for the live-while-connected USB path, and flash headroom for the
-   program VM. See `docs/research/chip-strategy.md`.
+5. ✅ **DECIDED — bare ATtiny85 motherboard, maths written by hand (CORDIC).**
+   The flash measurement in
+   [`modules/smartiny-calc/docs/compute-budget.md`](../modules/smartiny-calc/docs/compute-budget.md)
+   put real numbers on this: libm + `dtostrf` is 4372 B and lands the system at
+   ~93 % flash, which fits the calculator and starves the program VM. **That is
+   an argument for the 1624 and it was heard and declined.** Fixed-point CORDIC
+   plus a hand-rolled formatter measures 1818 B and buys the headroom back, and
+   it is what HP actually did in 1972 — so the constrained path is also the
+   historically faithful one, which is the guiding priority (§1) landing exactly
+   on its feet.
+
+   The 412 was never the alternative — it has *less* memory than a '85. And the
+   '85 **can** drive an SSD1306 via `u8x8` (no buffer) or `u8g2` page mode
+   (128 B); only the full 1 KB framebuffer is out of reach, which is not the same
+   thing. The 1624's remaining live argument is the USART for the
+   live-while-connected USB path (decision 9), not compute. See
+   [`docs/research/chip-strategy.md`](research/chip-strategy.md).
+
+10. **Number format for the RPN engine** — the decision CORDIC does *not* settle.
+    The 1818 B demo is Q16.16: ±32768, ~5 digits, no exponent, so you could not
+    enter 1×10⁶. Shippable options are BCD mantissa + exponent (what HP did;
+    decimal-exact, most code), float storage with CORDIC transcendentals (keeps
+    the 1086 B float core, drops libm's 1716 B and `dtostrf`), or wider fixed
+    point (simplest, still no scientific notation). Whichever is chosen gives
+    back some of the 2554 B saving, so **that figure is an upper bound.**
 6. LED module v1 drive: 3–4 direct-drive GPIO LEDs (recommended first); APA102
    RGB deferred to v2.
 7. Modifier status semantics: one-at-a-time modes vs stackable flags (drives the
