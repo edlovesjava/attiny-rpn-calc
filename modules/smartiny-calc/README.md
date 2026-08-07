@@ -33,6 +33,13 @@ This is the one seat where a bare ATtiny85 is genuinely contested:
 
 The USB story pushes hardest toward the upgrade — see architecture §11 decision 9.
 
+**Flash has now been measured, not guessed** —
+[`docs/compute-budget.md`](docs/compute-budget.md). Speed never enters the
+decision; the whole libm + `dtostrf` build is 4372 B, of which `dtostrf` alone is
+1570 B. Replacing both with fixed-point CORDIC and a hand-rolled formatter
+measures 1818 B, which is the difference between "the calculator fits and nothing
+else does" and "there is room for the program VM."
+
 ## Status
 
 ⬜ Planned — Board 2, after the keypad.
