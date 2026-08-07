@@ -76,6 +76,79 @@ dark.
 Note what the keypad never knew: that `*` means multiply, that `FUNC`+`*` means
 power, or that a calculator was involved at all.
 
+## Layout C — scientific RPN (the working layout)
+
+16 keys, 18 wanted functions. Two get relegated, and which two is forced:
+
+- **SHIFT must be a hold** — `shift + X` cannot *create* shift, so a gesture is the
+  only way in.
+- **CHS is the most relegatable** — least used, and `0 x −` is always a fallback.
+
+Everything else stays a direct press.
+
+```
+          col0            col1            col2            col3
+row0    7 │ x↔y        8 │ R↓          9 │ DROP        ÷ │ √
+row1    4 │ LOG        5 │ LN          6 │ 1/x         × │ y^x
+row2    1 │ SIN        2 │ COS         3 │ TAN         − │ LASTx
+row3    0 │ π          . │ SHIFT       ⏎ │ CHS         + │ CLR
+
+        tap │ shift            keycode = 4·row + col
+```
+
+`.` is the SHIFT key: **tap = decimal point, hold = sticky shift**. Not ENTER —
+ENTER is the most-pressed key in RPN, which makes it the worst possible host for a
+hold gesture, since accidental long presses concentrate where you press most and
+hesitate most. `.` is pressed briefly and deliberately, and a stray shift shows on
+the status LED and clears with another press.
+
+```console
+$ ./key_monitor.py --bus 3 --set-mod 0 sticky 13 --taphold 13 --hold-ms 400 --save
+```
+
+That configuration is precisely the orthogonal split from
+[`keys-and-feedback.md`](keys-and-feedback.md) earning its keep: **`STICKY` says
+what the latch does, the `TAPHOLD` bit says it triggers on a hold.** The original
+welded-together design could not have expressed it.
+
+### Why the shifted assignments sit where they do
+
+- **`×`→`y^x`, `÷`→`√`** — power and root are the natural analogues of multiply
+  and divide. The most memorable pairing on the pad.
+- **Top row → stack ops.** Note *push is already ENTER*, so the useful trio is
+  **swap / roll-down / drop**, not push/pop/swap.
+- **`1`/`2`/`3` → SIN/COS/TAN** — the trig trio on the first three digits.
+- **`0` → π** — a constant on the zero key.
+- **`CLR` and `LASTx` land on keycodes 15 and 11, both collision-proof.** The two
+  most destructive shifted functions therefore cannot be produced by a two-key
+  fumble. Deliberate, not luck.
+- **`shift` + `.` = cancel** — pressing the modifier key while it is engaged clears
+  it, so the escape is the key itself.
+
+### Placement checked against the collision rule
+
+| keycode | holds | property |
+|---|---|---|
+| 0 | `7` | **absorbing** — spurious collisions land here; a digit is harmless |
+| 14 | `⏎` | **collision-proof** — the committing action cannot be faked |
+| 15 | `+` / `CLR` | collision-proof |
+| 11 | `−` / `LASTx` | collision-proof |
+| 13 | `.` / SHIFT | not collision-proof — tolerable, the LED shows it |
+
+### The honest ceiling
+
+One shift level gives **32 functions**, which is a solid scientific calculator but
+not an HP-15C. There is no room for the inverses — `asin`, `acos`, `atan`, `10^x`,
+`e^x` — which would need a second modifier (HP's `f`/`g`) or shift+hold gestures.
+
+Shift+hold would take it to 64 arithmetically, but four gesture layers on unlabeled
+keys is beyond memory. **That is what the swappable printed overlay is for**: it
+turns "remember 32 mappings" into "read them off the panel", which is exactly how
+HP made two shift levels usable.
+
+And the real escape hatch remains a second keypad — 32 keys gives dedicated ENTER,
+CHS *and* SHIFT with room for the inverse functions, no gestures at all.
+
 ## Layout B — hex entry (all 16 keys are digits)
 
 ```
