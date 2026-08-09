@@ -82,17 +82,18 @@ The 1818 B measurement uses **Q16.16**, which ranges only ±32768 with ~5
 significant digits. Fine for a proof, **wrong for a calculator** — you could not
 enter 1×10⁶.
 
-A real implementation needs an exponent. Three honest options, undecided:
+**✅ Since resolved — BCD mantissa + decimal exponent**, measured in
+[`number-format.md`](number-format.md). The surprise there is that BCD is not the
+expensive option: `+ − × ÷` plus a display formatter costs **1968 B in BCD
+against 2456 B in float + `dtostrf`**. Float wins the arithmetic by 654 B and
+loses the formatter by 1142 B — because with decimal storage the digits *are*
+digits, so binary→decimal conversion is structurally absent rather than
+optimised. It also makes `0.1 + 0.2` come out exactly `0.3`.
 
-| Scheme | Range | Notes |
-|---|---|---|
-| **BCD mantissa + exponent** | full | what HP did; decimal-exact, no binary rounding surprises; most code to write |
-| **float storage + CORDIC transcendentals** | full | keeps the 1086 B float core, drops libm's 1716 B and `dtostrf`; middle path |
-| Wider fixed point (Q40.24 etc.) | wide, not huge | simplest, still cannot do scientific notation |
-
-The measured 2554 B saving is therefore an **upper bound**; a scheme with proper
-range will give back some of it. The direction holds regardless — the formatter
-and the transcendentals are where the flash goes, and both are replaceable.
+The 2554 B figure above therefore stands as an **upper bound measured against the
+wrong format in both directions** — Q16.16 has too little range to ship and too
+little precision for CORDIC, whose outputs live in [−1, 1]. Q2.30 is the right
+binary format if a binary kernel is used at all.
 
 ## Conclusions
 
@@ -126,8 +127,11 @@ That makes the accuracy question tractable rather than nerve-wracking:
 | the formatter | round-trip: format → parse → compare |
 
 Sixteen CORDIC iterations converge to ~16 bits, so the iteration count is a
-tunable: fewer iterations, less flash and less accuracy, and the test suite
-tells you exactly what you bought. **Settle
-[§11 decision 10](../../../docs/architecture.md) (the number format) first** —
-it fixes the fixed-point scale the whole kernel is written against, and it is
-much cheaper to decide than to retrofit.
+tunable: fewer iterations, less flash and less accuracy, and the test suite tells
+you exactly what you bought.
+
+The number format is now settled (BCD+exponent), so the remaining open question
+is the **bridge**: a decimal CORDIC that never leaves BCD, or a binary Q2.30
+kernel plus conversion routines. That is architecture §11 decision 11, and the
+decisive number — what decimal CORDIC actually costs in flash — is unmeasured.
+Build `core/num.c` first regardless; both bridges sit on top of it.

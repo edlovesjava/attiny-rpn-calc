@@ -7,3 +7,7 @@ build/
 *.elf
 __pycache__/
 *.pyc
+
+# flash-bench build products
+modules/smartiny-calc/tools/flash-bench/test_num
+modules/smartiny-calc/tools/flash-bench/.*.elf

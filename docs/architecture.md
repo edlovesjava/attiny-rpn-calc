@@ -621,13 +621,25 @@ direct-drive LEDs is trivial. Save charlieplex / APA102 cleverness for a
    live-while-connected USB path (decision 9), not compute. See
    [`docs/research/chip-strategy.md`](research/chip-strategy.md).
 
-10. **Number format for the RPN engine** — the decision CORDIC does *not* settle.
-    The 1818 B demo is Q16.16: ±32768, ~5 digits, no exponent, so you could not
-    enter 1×10⁶. Shippable options are BCD mantissa + exponent (what HP did;
-    decimal-exact, most code), float storage with CORDIC transcendentals (keeps
-    the 1086 B float core, drops libm's 1716 B and `dtostrf`), or wider fixed
-    point (simplest, still no scientific notation). Whichever is chosen gives
-    back some of the 2554 B saving, so **that figure is an upper bound.**
+10. ✅ **DECIDED — BCD mantissa + decimal exponent**, HP-35 shaped: 10 digits,
+    `int8_t` exponent, 7 bytes per number (stack + `LASTx` = 35 B of 512).
+    Measured in
+    [`modules/smartiny-calc/docs/number-format.md`](../modules/smartiny-calc/docs/number-format.md):
+    BCD is **1968 B** for `+ − × ÷` plus a display formatter against float +
+    `dtostrf`'s **2456 B**. Float wins the arithmetic by 654 B and loses the
+    formatter by 1142 B, because with BCD the digits *are* digits and
+    binary→decimal conversion is structurally absent rather than optimised.
+    `0.1 + 0.2` also comes out exactly `0.3`, which is the reason a user would
+    care. **BCD is not the expensive proper option you graduate to — it is the
+    cheap one**, so there is no Q16.16 prototype stage.
+11. **CORDIC bridge — decimal or binary?** The one unmeasured number left.
+    Decimal CORDIC (`atan(10⁻ⁱ)` table, pseudo-multiplication) is HP-faithful and
+    needs no conversion code; a binary Q2.30 kernel is less new code but
+    reintroduces the binary↔decimal conversion BCD was chosen to delete. A binary
+    kernel remains worth writing **as a host-only scaffold** for the accuracy
+    harness — Q2.30, not Q16.16, since CORDIC's outputs live in [−1, 1] and
+    Q16.16 wastes 16 bits on unused integer range. Measure decimal CORDIC before
+    committing.
 6. LED module v1 drive: 3–4 direct-drive GPIO LEDs (recommended first); APA102
    RGB deferred to v2.
 7. Modifier status semantics: one-at-a-time modes vs stackable flags (drives the
