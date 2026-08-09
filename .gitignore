@@ -1,0 +1,13 @@
+# host test binaries
+run_tests
+*.o
+# arduino build output
+build/
+*.hex
+*.elf
+__pycache__/
+*.pyc
+
+# flash-bench build products
+modules/smartiny-calc/tools/flash-bench/test_num
+modules/smartiny-calc/tools/flash-bench/.*.elf
